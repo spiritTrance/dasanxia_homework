@@ -127,13 +127,46 @@ group by course.CID
 -- 4、学生自主上机实验内容（选做）（未获满分时，可酌情加分）
 -- 在必做题的数据库中完成以下要求：
 -- 学生只能选择自己学院开设的课程。发现CS学院有的同学选择了其他学院开设的课程。在SC表中删除这些错选的记录。
+-- drop trigger course_choose_valid_check on SC; 
+CREATE OR REPLACE FUNCTION insert_func() RETURNS TRIGGER AS
+            $$
+            DECLARE
+                C_DEPT varchar(20) := '0';
+                S_DEPT varchar(20) := '0';
+            BEGIN
+                C_DEPT := distinct course.DEPT from course where course.CID = NEW.CID;
+                S_DEPT := distinct student.DEPT from student where student.SID = NEW.SID;
+                dbe_output.print_line('C_DEPT = '||C_DEPT);
+                dbe_output.print_line('S_DEPT = '||S_DEPT);
+                if not C_DEPT = S_DEPT THEN
+                    delete from SC where NEW.CID = SC.CID and NEW.SID = SC.SID;
+                end if;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE PLPGSQL;
 create trigger course_choose_valid_check after insert on SC
-    referencing new row as nrow
     for each row
-    when(
-        1 = 1
-    )
-    begin
-        rollback
-    end;
--- drop trigger course_choose_valid_check;
+    execute procedure insert_func();
+
+INSERT INTO SC VALUES 
+    ('S1', 'C2', 10), -- 不可以 
+    ('S5', 'C5', 10); -- 可以
+select * from SC;
+delete from SC where GRADE = 10
+
+select SC.sid, SC.cid
+from student, SC, course
+where student.SID = SC.SID
+    and course.CID = SC.CID
+    and student.DEPT <> course.DEPT;             -- 选出错误的选项
+
+delete from SC
+where (SC.sid, SC.cid) in (
+    select SC.sid, SC.cid
+    from student, SC, course
+    where student.SID = SC.SID
+        and course.CID = SC.CID
+        and student.DEPT <> course.DEPT
+);          -- 删除操作
+
+select * from SC        -- 验证
