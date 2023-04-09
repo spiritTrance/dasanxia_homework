@@ -17,7 +17,7 @@ class Feistel(object):
     
     @property
     def __MOD(self):
-        return (self.charSetSize * 8 // 2)
+        return 2 ** (self.charSetSize * 8 // 2)
     
     def __generate_sub_seed(self):
         return [random.randint(0, 0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff) for _ in range(self.encryptTime)]
@@ -101,13 +101,13 @@ class Feistel(object):
             L0, R0 = self.__setDecrypt(L, R)
             decryptVal = (L0 << (bitLen // 2)) + R0
             s += self.__setBit2string(decryptVal)
-            print("密文: 0x{:x}；明文: 0x{:x}；子串: {:s}".format(val, decryptVal, self.__setBit2string(decryptVal)))
+            print("密文: 0x{:x}；明文: 0x{:x}；子串: {:s}".format(val, decryptVal, self.__setBit2string(decryptVal)), hex(val ^ decryptVal))
         return s.strip(" ")                     # 去除空格
     
 raw_txt = "CQUINFORMATIONSECURITYEXP" # cqu information security exp
 def f(x, y):
-    return ((0x996177f3 ^ x) * (y & 0x3312ff78))
-model = Feistel(seed = 241242, encryptTime = 16, charSetSize = 8, function = f, debugging = True)
+    return (0x996177f3 ^ x) * (y & 0x3312ff78)
+model = Feistel(seed = 9961, encryptTime = 16, charSetSize = 8, function = f, debugging = True)
 val = model.encrypt(raw_txt)
 s = model.decrypt(val, len(raw_txt))
 print("最终解密结果：",s)
