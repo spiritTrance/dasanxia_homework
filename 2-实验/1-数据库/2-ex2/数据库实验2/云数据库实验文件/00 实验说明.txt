@@ -1,0 +1,27 @@
+1. 本次实验为综合应用实验。
+
+2. 学生需自主学习PowerDesigner进行概念模型设计的方法。
+PowerDesigner教程参考 01 PowerDesigner简易使用教程。
+
+3. 在实验过程中需要使用java程序设计语言，请自主学习java的基本语法。
+java使用JDBC连接数据库的方法参考：02 GaussDB应用程序JDBC驱动连接。
+
+java基本语法参考：
+https://www.runoob.com/java/java-tutorial.html
+eclipse下开发java的教程参考：
+https://zhuanlan.zhihu.com/p/344613076
+http://cd.itheima.com/news/20220627/164225.html
+https://zhuanlan.zhihu.com/p/146333721
+
+JDK安装文件为jdk-8u361-windows-x64。
+eclipse需自行下载。
+
+4. 实验内容在学号姓名2文档中，请根据文档内容进行实验，最后将文件名修改为自己的学号姓名，提交学号姓名2.doc文件。
+
+
+5. 实验过程中用的数据库不变，不需要自行建立数据库。只需根据实验要求建立对应的表即可。
+
+6.实验过程中采用的公网IP如下：
+
+2020 级公网 IP 为：116.205.157.173
+2021 级公网 IP 为：110.41.126.115
