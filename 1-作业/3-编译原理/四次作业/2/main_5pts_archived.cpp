@@ -132,7 +132,8 @@ bool isoperator(char c) {
         return true;
     default:
         return false;
-    }
+    }
+
 }
 
 TokenType get_op_type(std::string s) {
@@ -155,7 +156,8 @@ TokenType get_op_type(std::string s) {
         return TokenType::RPARENT;
     default:
         return TokenType::INTLTR;
-    }
+    }
+
 }
 
 bool DFA::next(char input, Token& buf) {
@@ -192,7 +194,8 @@ bool DFA::next(char input, Token& buf) {
         buf.value = DFA::cur_str;
         DFA::reset();
         return buf.value.size();
-    }
+    }
+
 }
 
 void DFA::reset() {
@@ -282,36 +285,21 @@ struct Parser {
         AstNode *son = Parser::parse_exp(root);
         root->children.push_back(son);
         root->value = son->value;
-#ifdef DEBUG_PARSER
-        Parser::log(root);
-        std::cout << "Terminal!!" << std::endl;
-        #endif
-        return root;    
+        return root;
+    
     }
 
     // u can define member funcition of Parser here
     AstNode* parse_exp(AstNode* fa){
         AstNode *expNode = new AstNode(NodeType::EXP, fa);
-        #ifdef DEBUG_PARSER
-        std::cout << "Pre: ";
-        Parser::log(expNode);
-        #endif
         AstNode *son = Parser::parse_addExp(expNode);
         expNode->children.push_back(son);
         expNode->value = son->value;
         
-        #ifdef DEBUG_PARSER
-        std::cout << "End: ";
-        Parser::log(expNode);
-        #endif
         return expNode;
     }
     AstNode* parse_addExp(AstNode* fa){
         AstNode *addExpNode = new AstNode(NodeType::ADDEXP, fa);
-        #ifdef DEBUG_PARSER
-        std::cout << "Pre: ";
-        Parser::log(addExpNode);
-        #endif
         AstNode *mulExpSon_1 = Parser::parse_mulExp(addExpNode);
         addExpNode->children.push_back(mulExpSon_1);
         addExpNode->value = mulExpSon_1->value;
@@ -339,18 +327,10 @@ struct Parser {
                 addExpNode->children.push_back(mulExpSon_2);
         }
         
-        #ifdef DEBUG_PARSER
-        std::cout << "End: ";
-        Parser::log(addExpNode);
-        #endif
         return addExpNode;
     }
     AstNode* parse_mulExp(AstNode* fa){
         AstNode *mulExpNode = new AstNode(NodeType::MULEXP, fa);
-        #ifdef DEBUG_PARSER
-        std::cout << "Pre: ";
-        Parser::log(mulExpNode);
-        #endif
         AstNode *unaryExp_1 = Parser::parse_unaryExp(mulExpNode);
         mulExpNode->children.push_back(unaryExp_1);
         mulExpNode->value = unaryExp_1->value;
@@ -377,19 +357,11 @@ struct Parser {
                 mulExpNode->children.push_back(mulExpSon_2);
         }
         
-        #ifdef DEBUG_PARSER
-        std::cout << "End: ";
-        Parser::log(mulExpNode);
-        #endif
         return mulExpNode;
     }
     AstNode* parse_unaryExp(AstNode* fa){
         AstNode *unaryExpNode = new AstNode(NodeType::UNARYEXP, fa);
         uint32_t &i = this->index;
-        #ifdef DEBUG_PARSER
-        std::cout << "Pre: ";
-            Parser::log(unaryExpNode);
-        #endif
         // 儿子
         if (i < this->token_stream.size() && this->token_stream[i].type == TokenType::PLUS){
                 i++;
@@ -410,19 +382,11 @@ struct Parser {
                 unaryExpNode->children.push_back(son);
                 unaryExpNode->value = son->value;
         }
-        #ifdef DEBUG_PARSER
-        std::cout << "End: " ;
-        Parser::log(unaryExpNode);
-        #endif
         return unaryExpNode;
     }
     AstNode* parse_primaryExp(AstNode* fa){
         AstNode *primaryExpNode = new AstNode(NodeType::PRIMARYEXP, fa);
         
-        #ifdef DEBUG_PARSER
-        std::cout << "Pre: ";
-        Parser::log(primaryExpNode);
-        #endif
         uint32_t &i = this->index;
         if (i < this->token_stream.size() && this->token_stream[i].type == TokenType::LPARENT){
                 i++;    // 左括号的右边的token
@@ -440,18 +404,10 @@ struct Parser {
                 primaryExpNode->children.push_back(son);
                 primaryExpNode->value = son->value;
         }
-        #ifdef DEBUG_PARSER
-        std::cout << "End: ";
-        Parser::log(primaryExpNode);
-        #endif
         return primaryExpNode;
     }
     AstNode* parse_number(AstNode* fa){
         AstNode *numberNode = new AstNode(NodeType::NUMBER, fa);
-        #ifdef DEBUG_PARSER
-        std::cout << "Pre: ";
-        Parser::log(numberNode);
-        #endif
         std::string value = this->token_stream[this->index++].value;
         int nd_val = 0;
         uint32_t base = 10;
@@ -481,21 +437,11 @@ struct Parser {
             base = 8;
         for (char ch : value)
         {
-#ifdef DEBUG_PARSER
-                        std::cout << "Targeted Val: " <<value <<" ,Cur Val: "<<nd_val << std::endl;
-                #endif
                 uint32_t radixVal = (ch>='a' && ch<='f') ? ch - 'a' + 10 :
                                (ch>='A' && ch<='F') ? ch - 'A' + 10 : ch - '0';
                 nd_val = nd_val * base + radixVal;
         }
         numberNode->value = nd_val;
-        #ifdef DEBUG_PARSER
-                std::cout << "Processed Val: " << nd_val << std::endl;
-        #endif
-        #ifdef DEBUG_PARSER
-        std::cout << "End: ";
-        Parser::log(numberNode);
-        #endif
         return numberNode;
     }
 
@@ -503,33 +449,15 @@ struct Parser {
 // how to use this: in ur local enviroment, defines the macro DEBUG_PARSER and add this function in every parse fuction
 void log(AstNode* node){
         #ifdef DEBUG_PARSER
-                // return;
-                std::string ans= "";
-                for (Token tk: token_stream){
-                        ans += tk.value;
-                }
-                if (index >= token_stream.size() && node!=nullptr){
-                std::cout       << "in parse "          << toString(node->type) 
-                                << "\t node_val::"      << node->value 
-                                // << "\t fa_type::"      << toString(node->parent->type) 
-                                << "\t cur_index::"       <<index
-                                << "\t"+ans
-                                <<  std::endl;
-                }
-                else if (node == nullptr){
-                std::cout << "Nullptr" << std::endl;
-                }
-                else
-                std::cout       << "in parse "          << toString(node->type) 
-                                << "\t node_val::"      << node->value 
-                                // << "\t fa_type::"      << toString(node->parent->type) 
-                                << "\t cur_index::"       <<index
-                                << "\t cur_token_type::" << toString(token_stream[index].type) 
-                                << "\t token_val::"      << token_stream[index].value 
-                                << "\t"+ans
-                                <<  std::endl;
+            std::cout       << "in parse "              << toString(node->type) 
+                            << "\t node_val::"          << node->value 
+                            << "\t cur_index::"         << index
+                            << "\t cur_token_type::"    << toString(token_stream[index].type) 
+                            << "\t token_val::"         << token_stream[index].value 
+                            <<  std::endl;
         #endif
-    }
+    }
+
     
 };
 
