@@ -3,7 +3,8 @@
         {
             "name": "Win32",
             "includePath": [
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/cpEx1/include"
             ],
             "defines": [
                 "_DEBUG",
@@ -11,8 +12,7 @@
                 "_UNICODE"
             ],
             "windowsSdkVersion": "10.0.22621.0",
-            // "compilerPath": "C:/Program Files (x86)/Dev-Cpp/MinGW64/bin/g++.exe",    // windows environment
-            "compilerPath": "/usr/bin/gcc",     // wsl environment
+            "compilerPath": "/usr/bin/gcc",
             "intelliSenseMode": "windows-msvc-x64"
         }
     ],

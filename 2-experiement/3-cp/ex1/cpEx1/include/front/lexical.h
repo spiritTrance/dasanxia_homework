@@ -20,6 +20,7 @@
 #define LEXICAL_H
 
 #include"front/token.h"
+#include"front/auxiliary_function.h"
 
 #include<set>
 #include<vector>

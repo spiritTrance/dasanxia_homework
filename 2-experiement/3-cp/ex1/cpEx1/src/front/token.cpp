@@ -1,5 +1,5 @@
 #include"front/token.h"
-#include"auxil/auxiliary_function.h"
+#include"front/auxiliary_function.h"
 
 #include<cassert>
 
@@ -85,13 +85,17 @@ frontend::TokenType frontend::stringToTokenType(std::string s){
         else if (s == "||")
             return frontend::TokenType::OR;
         else{
-            if (auxil::isVarNameInit(s[0]))
+            if (frontend::isVarNameInit(s[0]))
                 return frontend::TokenType::IDENFR;
-            else{
+            else{       // judge the int literal and float literal. note that the existence of hexadecimal and octal
                 bool unknownCharFlag = false, digitFlag = false;
                 int pointCount = 0;
-                for (char ch: s){
-                    if (auxil::isDigit(ch)){
+                for (size_t i = 0; i < s.length();i++)
+                {
+                    char ch = s[i];
+                    if (i <= 1 && s.length() >=2 && (s.substr(0,2) == "0b" || s.substr(0,2) == "0x"))
+                        continue;           // judge the hexadecimal and binary
+                    if (frontend::isProbableDigit(s, ch)){
                         digitFlag = true;
                     }
                     else if (ch == '.'){
@@ -115,6 +119,10 @@ frontend::TokenType frontend::stringToTokenType(std::string s){
     }
     else{           // length = 1
         char ch = s[0];
+        if (frontend::isDecimalDigit(ch))
+            return frontend::TokenType::INTLTR;
+        else if (frontend::isInVarCharset(ch))
+            return frontend::TokenType::IDENFR;
         switch (ch)
         {
             case '+': return frontend::TokenType::PLUS;

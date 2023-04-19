@@ -1,5 +1,5 @@
-#include"front/lexical.h"
-#include"auxil/auxiliary_function.h"
+#include "front/lexical.h"
+#include "front/auxiliary_function.h"
 
 #include<map>
 #include<cassert>
@@ -43,12 +43,12 @@ bool frontend::DFA::flush(frontend::Token& tk){
 }
 
 bool frontend::DFA::emptyStateProcess(char input, Token &buf){
-    if (auxil::isOperator(input)){      // 2 op     // hard to process, so pay much attention!!!
+    if (frontend::isOperator(input)){      // 2 op     // hard to process, so pay much attention!!!
         this->cur_str += input;
         this->cur_state = State::op;
         return false;
     }
-    else if (auxil::isVarNameInit(input)){  // 2 identity
+    else if (frontend::isVarNameInit(input)){  // 2 identity
         this->cur_str += input;
         this->cur_state = State::Ident;
         return false;
@@ -58,7 +58,7 @@ bool frontend::DFA::emptyStateProcess(char input, Token &buf){
         this->cur_state = State::FloatLiteral;
         return false;
     }
-    else if (auxil::isDigit(input)){ // 2 IntLiteral
+    else if (frontend::isDecimalDigit(input)){ // 2 IntLiteral
         this->cur_str += input;
         this->cur_state = State::IntLiteral;
         return false;
@@ -68,7 +68,8 @@ bool frontend::DFA::emptyStateProcess(char input, Token &buf){
     }
 }
 bool frontend::DFA::intLiteralStateProcess(char input, Token &buf){
-    if (auxil::isDigit(input)){
+    // especially pay attention to octal, hexadecimal!!!
+    if (frontend::isProbableDigit(this->cur_str, input)){
         this->cur_str += input;
         return false;
     }
@@ -77,13 +78,13 @@ bool frontend::DFA::intLiteralStateProcess(char input, Token &buf){
         this->cur_state = State::FloatLiteral;
         return false;
     }
-    else if (auxil::isOperator(input)){
+    else if (frontend::isOperator(input)){
         bool flag = flush(buf);
         this->cur_str += input;
         this->cur_state = State::op;
         return flag;
     }
-    else if (auxil::isVarNameInit(input)){
+    else if (frontend::isVarNameInit(input)){
         bool flag = flush(buf);
         this->cur_str += input;
         this->cur_state = State::Ident;
@@ -95,17 +96,17 @@ bool frontend::DFA::intLiteralStateProcess(char input, Token &buf){
     }
 }
 bool frontend::DFA::floatLiteralStateProcess(char input, Token &buf){
-    if (auxil::isDigit(input)){
+    if (frontend::isDecimalDigit(input)){
         this->cur_str += input;
         return false;
     }
-    else if (auxil::isOperator(input)){
+    else if (frontend::isOperator(input)){
         bool flag = flush(buf);
         this->cur_str += input;
         this->cur_state = State::op;
         return flag;
     }
-    else if (auxil::isVarNameInit(input)){
+    else if (frontend::isVarNameInit(input)){
         bool flag = flush(buf);
         this->cur_str += input;
         this->cur_state = State::Ident;
@@ -117,11 +118,11 @@ bool frontend::DFA::floatLiteralStateProcess(char input, Token &buf){
     }
 }
 bool frontend::DFA::identityStateProcess(char input, Token &buf){
-    if (auxil::isInVarCharset(input)){
+    if (frontend::isInVarCharset(input)){
         this->cur_str += input;
         return false;
     }
-    else if (auxil::isOperator(input)){
+    else if (frontend::isOperator(input)){
         bool flag = flush(buf);
         this->cur_str += input;
         this->cur_state = State::op;
@@ -133,8 +134,8 @@ bool frontend::DFA::identityStateProcess(char input, Token &buf){
     }
 }
 bool frontend::DFA::operatorStateProcess(char input, Token &buf){       // pay attention to char < > = ! & | for they have more cases, the key is to judge when to flush DFA!!!
-    if (auxil::isOperator(input)){
-        if (this->cur_str.size() == 1){
+    if (frontend::isOperator(input)){
+        if (this->cur_str.size() == 1){         // length == 1 and special char probe
             bool isNeedFlush = true;
             switch(this->cur_str[0]){
                 case '<':
@@ -142,42 +143,41 @@ bool frontend::DFA::operatorStateProcess(char input, Token &buf){       // pay a
                 case '=':
                 case '!':
                     isNeedFlush = input == '=' ? false : true;
+                    break;
                 case '&':
                     isNeedFlush = input == '&' ? false : true;
+                    break;
                 case '|':
                     isNeedFlush = input == '|' ? false : true;
+                    break;
                 default:
                     isNeedFlush = true;
+                    break;
             }
             if (isNeedFlush){
                 bool flag = flush(buf);
                 this->cur_str += input;
                 return flag;
-            }
-            else{
+            } else {
                 this->cur_str += input;
                 return false;
             }
-        }
-        else{
+        } else {                                    // length > 1 and pop out
             bool flag = flush(buf);
             this->cur_str += input;
             return flag;
         }
-    }
-    else if (auxil::isDigit(input)){
+    } else if (frontend::isDecimalDigit(input)){
         bool flag = flush(buf);
         this->cur_str += input;
         this->cur_state = State::IntLiteral;
         return flag;
-    }
-    else if (input == '.'){
+    } else if (input == '.'){
         bool flag = flush(buf);
         this->cur_str += input;
         this->cur_state = State::FloatLiteral;
         return flag;
-    }
-    else if (auxil::isVarNameInit(input)){
+    } else if (frontend::isVarNameInit(input)){
         bool flag = flush(buf);
         this->cur_str += input;
         this->cur_state = State::Ident;
@@ -193,7 +193,7 @@ bool frontend::DFA::operatorStateProcess(char input, Token &buf){       // pay a
 bool frontend::DFA::next(char input, Token& buf) {
 #ifdef DEBUG_DFA
 #include<iostream>
-    std::cout << "in state [" << toString(cur_state) << "], input = \'" << input << "\', str = " << cur_str << "\t";
+    std::cout << "in state [" << toString(cur_state) << "], input = \'" << input << "\', str = $" << cur_str << "$" << std::endl;
 #endif
     // TODO;
     bool ret = false;
@@ -217,11 +217,10 @@ bool frontend::DFA::next(char input, Token& buf) {
         default:
             throw "In lexical analysis phase: unknown DFA state!!!";
     }
-    return ret;
-
 #ifdef DEBUG_DFA
-    std::cout << "next state is [" << toString(cur_state) << "], next str = " << cur_str << "\t, ret = " << ret << std::endl;
+    std::cout << "next state is [" << toString(cur_state) << "], next str = $" << cur_str << "$ , ret = " << ret << std::endl;
 #endif
+    return ret;
 }
 
 void frontend::DFA::reset() {
@@ -243,7 +242,7 @@ std::string frontend::Scanner::removeComments(std::ifstream& fin){
     std::string ans = "", tmp = "";
     while (getline(fin, tmp))
     {
-        for (int i = 0; i < tmp.size();i++){
+        for (size_t i = 0; i < tmp.size();i++){
             std::string buf = tmp.substr(i, 2);
             // details: scan to the first char, so move the ptr to next and rely the for to shift ptr
             if (buf == "//"){
@@ -281,11 +280,15 @@ std::vector<frontend::Token> frontend::Scanner::run() {
     for(auto c: s) {
         if(dfa.next(c, tk)){
             ret.push_back(tk);
+            #ifdef DEBUG_SCANNER
+            #include<iostream>
+                    std::cout << "Generate Token: " << toString(tk.type) <<" "<<tk.value<< std::endl;
+            #endif
         }
     }
 #ifdef DEBUG_SCANNER
 #include<iostream>
-            std::cout << "token: " << toString(tk.type) << "\t" << tk.value << std::endl;
+    std::cout << "token: " << toString(tk.type) << "\t" << tk.value << std::endl;
 #endif
             return ret;
 }
