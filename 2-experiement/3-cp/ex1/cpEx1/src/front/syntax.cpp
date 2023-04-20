@@ -583,21 +583,26 @@ bool Parser::parseLAndExp(LAndExp* root){
 
 void Parser::log(AstNode* node, int isIn){
 #ifdef DEBUG_PARSER
+    std::string v, vt;
     if (index >= token_stream.size()){
-        
+        v = "Index Exceed!";
+        vt = "Index Exceed!";
     }
-    std::string v = token_stream[index].value;
+    else{
+        v = token_stream[index].value;
+        vt = toString(token_stream[index].type);
+    }
     if (isIn)
     {
         for (int i = 1; i <= DEBUG_NUM; i++)
             std::cout << "| ";
-        std::cout << "In parse" << toString(node->type) << ", cur_token_type::" << toString(token_stream[index].type) << ", token_val::" << token_stream[index].value << '\n';
+        std::cout << "In parse" << toString(node->type) << ", cur_token_type::" << vt << ", token_val::" << v << '\n';
         DEBUG_NUM += 1;
         } else {
             DEBUG_NUM -= 1;
             for (int i = 1; i <= DEBUG_NUM;i++)
                 std::cout << "| ";
-            std::cout << "Out parse" << toString(node->type) << ", cur_token_type::" << toString(token_stream[index].type) << ", token_val::" << token_stream[index].value << '\n';
+            std::cout << "Out parse" << toString(node->type) << ", cur_token_type::" << vt << ", token_val::" << v << '\n';
         }
 #endif
 }
