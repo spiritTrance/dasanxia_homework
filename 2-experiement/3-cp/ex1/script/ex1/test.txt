@@ -1,33 +1,66 @@
-CompUnit -> (Decl | FuncDef) [CompUnit]
-Decl -> ConstDecl | VarDecl
+CompUnit -> Decl [CompUnit]
+CompUnit -> FuncDef [CompUnit]
+Decl -> ConstDecl
+Decl -> VarDecl
 ConstDecl -> 'const' BType ConstDef { ',' ConstDef } ';'
-BType -> 'int' | 'float'
+BType -> 'int'
+BType -> 'float'
 ConstDef -> Ident { '[' ConstExp ']' } '=' ConstInitVal
-ConstInitVal -> ConstExp | '{' [ ConstInitVal { ',' ConstInitVal } ] '}'
+ConstInitVal -> ConstExp
+ConstInitVal -> '{' [ ConstInitVal { ',' ConstInitVal } ] '}'
 VarDecl -> BType VarDef { ',' VarDef } ';'
 VarDef -> Ident { '[' ConstExp ']' } [ '=' InitVal ]
-InitVal -> Exp | '{' [ InitVal { ',' InitVal } ] '}'
+InitVal -> Exp
+InitVal -> '{' [ InitVal { ',' InitVal } ] '}'
 FuncDef -> FuncType Ident '(' [FuncFParams] ')' Block
-FuncType -> 'void' | 'int' | 'float'
+FuncType -> 'void'
+FuncType -> 'int'
+FuncType -> 'float'
 FuncFParam -> BType Ident ['[' ']' { '[' Exp ']' }]
 FuncFParams -> FuncFParam { ',' FuncFParam }
 Block -> '{' { BlockItem } '}'
-BlockItem -> Decl | Stmt
-Stmt -> LVal '=' Exp ';' | Block | 'if' '(' Cond ')' Stmt [ 'else' Stmt ] | 'while' '(' Cond ')' Stmt | 'break' ';' | 'continue' ';' | 'return' [Exp] ';' | [Exp] ';'
+BlockItem -> Stmt
+BlockItem -> Decl
+Stmt -> LVal '=' Exp ';'
+Stmt -> Block
+Stmt -> 'if' '(' Cond ')' Stmt [ 'else' Stmt ]
+Stmt -> 'while' '(' Cond ')' Stmt
+Stmt -> 'break' ';'
+Stmt -> 'continue' ';'
+Stmt -> 'return' [Exp] ';'
+Stmt -> Exp ';'
+Stmt -> ';'
 Exp -> AddExp
 Cond -> LOrExp
 LVal -> Ident {'[' Exp ']'}
-Number -> IntConst | floatConst
-PrimaryExp -> '(' Exp ')' | LVal | Number
-UnaryExp -> PrimaryExp | Ident '(' [FuncRParams] ')' | UnaryOp UnaryExp
-UnaryOp -> '+' | '-' | '!'
+Number -> floatConst
+Number -> IntConst
+PrimaryExp -> '(' Exp ')'
+PrimaryExp -> LVal
+PrimaryExp -> Number
+UnaryExp -> PrimaryExp
+UnaryExp -> Ident '(' [FuncRParams] ')'
+UnaryExp -> UnaryOp UnaryExp
+UnaryOp -> '+'
+UnaryOp -> '-'
+UnaryOp -> '!'
 FuncRParams -> Exp { ',' Exp }
-MulExp -> UnaryExp { ('*' | '/' | '%') UnaryExp }
-AddExp -> MulExp { ('+' | '-') MulExp }
-RelExp -> AddExp { ('<' | '>' | '<=' | '>=') AddExp }
-EqExp -> RelExp { ('==' | '!=') RelExp }
+MulExp -> UnaryExp { '*' UnaryExp }
+MulExp -> UnaryExp { '/' UnaryExp }
+MulExp -> UnaryExp { '%' UnaryExp }
+AddExp -> MulExp { '+' MulExp }
+AddExp -> MulExp { '-' MulExp }
+RelExp -> AddExp { '<' AddExp }
+RelExp -> AddExp { '>' AddExp }
+RelExp -> AddExp { '>=' AddExp }
+RelExp -> AddExp { '<=' AddExp }
+EqExp -> RelExp { '==' RelExp }
+EqExp -> RelExp { '!=' RelExp }
 LAndExp -> EqExp [ '&&' LAndExp ]
 LOrExp -> LAndExp [ '||' LOrExp ]
 ConstExp -> AddExp
 
-终结符或者是单引号括起的串，或者是 Ident、InstConst、floatConst 这样的记号
+# 终结符或者是单引号括起的串，或者是 Ident、InstConst、floatConst 这样的记号
+# 符号[...]表示方括号内包含的为可选项；
+# 符号{...}表示花括号内包含的为可重复 0 次或多次的项；
+# 因为为|的情况实在太难处理，因此对文法进行等价处理

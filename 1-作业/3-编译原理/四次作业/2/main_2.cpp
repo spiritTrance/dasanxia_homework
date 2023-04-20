@@ -427,7 +427,10 @@ AstNode* parse_exp(AstNode* fa){
                         break;
                 }
         }
-        for (char ch: value.substr(2)){
+        if (value[0] == '0')
+            base = 8;
+        for (char ch : value.substr(2))
+        {
                 uint32_t radixVal = (ch>='a' && ch<='f') ? ch - 'a' + 10 :
                                (ch>='A' && ch<='F') ? ch - 'A' + 10 : ch - '0';
                 nd_val = nd_val * base + radixVal;

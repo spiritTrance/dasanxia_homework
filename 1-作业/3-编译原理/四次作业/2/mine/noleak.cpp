@@ -285,169 +285,175 @@ struct Parser {
         AstNode* son = Parser::parse_exp(root);
         root->children.push_back(son);
         root->value = son->value;
-        #ifdef DEBUG_PARSER
-        Parser::log(root);
-        std::cout << "Terminal!!" << std::endl;
-        #endif
         return root;
-    
     }
 
     // u can define member funcition of Parser here
     template<typename T>
     T parse_exp(T fa){
-        T expNode = new AstNode(NodeType::EXP, fa);
-        T son = Parser::parse_addExp(expNode);
-        expNode->children.push_back(son);
-        expNode->value = son->value;
-        return expNode;
+        T nd = new AstNode(NodeType::EXP, fa);
+        T son = Parser::parse_addExp(nd);
+        nd->value = son->value;
+        nd->children.push_back(son);
+        return nd;
     }
     template<typename T>
     T parse_addExp(T fa){
-        T addExpNode = new AstNode(NodeType::ADDEXP, fa);
-        T mulExpSon_1 = Parser::parse_mulExp(addExpNode);
-        addExpNode->children.push_back(mulExpSon_1);
-        addExpNode->value = mulExpSon_1->value;
-        T mulExpSon_2 = nullptr;
+        T nd = new AstNode(NodeType::ADDEXP, fa);
+        T son1 = Parser::parse_mulExp(nd);
+        nd->children.push_back(son1);
+        nd->value = son1->value;
+        T son2 = nullptr;
         uint32_t& i = this->index;
-        while (i < this->token_stream.size()){
-                bool flag = false;
-                if (this->token_stream[i].type == TokenType::PLUS){
-                        flag = true;
-                        ++i;
-                        mulExpSon_2 = Parser::parse_mulExp(addExpNode);
-                        addExpNode->value += mulExpSon_2->value;
-                }
-                else if (this->token_stream[i].type == TokenType::MINU){
-                        flag = true;
-                        ++i;
-                        mulExpSon_2 = Parser::parse_mulExp(addExpNode);
-                        addExpNode->value -= mulExpSon_2->value;
-                }
-                if (!flag) break;
+        while (true){
+            if (i >= this->token_stream.size()) break;
+            bool flag = false;
+            if (this->token_stream[i].type == TokenType::PLUS){
+                flag = true;
+                ++i;
+                son2 = Parser::parse_mulExp(nd);
+                nd->value += son2->value;
+            }
+            else if (this->token_stream[i].type == TokenType::MINU){
+                flag = true;
+                ++i;
+                son2 = Parser::parse_mulExp(nd);
+                nd->value -= son2->value;
+            }
+            if (!flag) break;
         }
-        if (mulExpSon_2!=nullptr){
-                addExpNode->children.push_back(mulExpSon_2);
+        if (son2!=nullptr){
+            nd->children.push_back(son2);
         }
-        return addExpNode;
+        return nd;
     }
     template<typename T>
     T parse_mulExp(T fa){
-        T mulExpNode = new AstNode(NodeType::MULEXP, fa);
-        T unaryExp_1 = Parser::parse_unaryExp(mulExpNode);
-        mulExpNode->children.push_back(unaryExp_1);
-        mulExpNode->value = unaryExp_1->value;
-        T mulExpSon_2 = nullptr;
+        T nd = new AstNode(NodeType::MULEXP, fa);
+        T son1 = Parser::parse_unaryExp(nd);
+        nd->children.push_back(son1);
+        nd->value = son1->value;
+        T son2 = nullptr;
         uint32_t& i = this->index;
-        while (i < this->token_stream.size()){
-                bool flag = false;
-                if (this->token_stream[i].type == TokenType::MULT){
-                        ++i;
-                        flag = true;
-                        mulExpSon_2 = Parser::parse_unaryExp(mulExpNode);
-                        mulExpNode->value *= mulExpSon_2->value;
-                }
-                else if (this->token_stream[i].type == TokenType::DIV){
-                        ++i;
-                        flag = true;
-                        mulExpSon_2 = Parser::parse_unaryExp(mulExpNode);
-                        mulExpNode->value /= mulExpSon_2->value;
-                }
-                if (!flag) break;
+        while (true){
+            if (i >= this->token_stream.size()) break;
+            bool flag = false;
+            if (this->token_stream[i].type == TokenType::MULT){
+                ++i;
+                flag = true;
+                son2 = Parser::parse_unaryExp(nd);
+                nd->value *= son2->value;
+            }
+            else if (this->token_stream[i].type == TokenType::DIV){
+                ++i;
+                flag = true;
+                son2 = Parser::parse_unaryExp(nd);
+                nd->value /= son2->value;
+            }
+            if (!flag) break;
         }
-        if (mulExpSon_2!=nullptr){
-                mulExpNode->children.push_back(mulExpSon_2);
+        if (son2!=nullptr){
+                nd->children.push_back(son2);
         }
-        return mulExpNode;
+        return nd;
     }
     template<typename T>
     T parse_unaryExp(T fa){
-        T unaryExpNode = new AstNode(NodeType::UNARYEXP, fa);
+        T nd = new AstNode(NodeType::UNARYEXP, fa);
         uint32_t &i = this->index;
-        if (i < this->token_stream.size() && this->token_stream[i].type == TokenType::PLUS){
+        if (i >= this->token_stream.size())
+                goto label1;
+        if (this->token_stream[i].type == TokenType::PLUS)
+        {
                 i++;
-                unaryExpNode->children.push_back(new AstNode(NodeType::UNARYOP, unaryExpNode));
-                T son = parse_unaryExp(unaryExpNode);
-                unaryExpNode->value = son->value;
-                unaryExpNode->children.push_back(son);
+                nd->children.push_back(new AstNode(NodeType::UNARYOP, nd));
+                T son = parse_unaryExp(nd);
+                nd->value = son->value;
+                nd->children.push_back(son);
+            return nd;
         }
-        else if (i < this->token_stream.size() && this->token_stream[i].type == TokenType::MINU){
-                i++;
-                unaryExpNode->children.push_back(new AstNode(NodeType::UNARYOP, unaryExpNode));
-                T son = parse_unaryExp(unaryExpNode);
-                unaryExpNode->value = -son->value;
-                unaryExpNode->children.push_back(son);
+        else if (this->token_stream[i].type == TokenType::MINU){
+            i++;
+            nd->children.push_back(new AstNode(NodeType::UNARYOP, nd));
+            T son = parse_unaryExp(nd);
+            nd->value = -son->value;
+            nd->children.push_back(son);
+            return nd;
         }
-        else{
-                T son = Parser::parse_primaryExp(unaryExpNode);
-                unaryExpNode->children.push_back(son);
-                unaryExpNode->value = son->value;
-        }
-        return unaryExpNode;
+        label1:
+            T son = Parser::parse_primaryExp(nd);
+            nd->children.push_back(son);
+            nd->value = son->value;
+        return nd;
     }
     template<typename T>
     T parse_primaryExp(T fa){
-        T primaryExpNode = new AstNode(NodeType::PRIMARYEXP, fa);
+        T nd = new AstNode(NodeType::PRIMARYEXP, fa);
         uint32_t &i = this->index;
-        if (i < this->token_stream.size() && this->token_stream[i].type == TokenType::LPARENT){
-                i++;    // 左括号的右边的token
-                T son = Parser::parse_exp(primaryExpNode);
-                while (i < this->token_stream.size() && this->token_stream[i].type != TokenType::RPARENT)
-                {
-                        i++;
-                }
+        if (i >= this->token_stream.size())
+            goto label2;
+        if (this->token_stream[i].type == TokenType::LPARENT)
+        {
+            i++; // 左括号的右边的token
+            T son = Parser::parse_exp(nd);
+            while (i < this->token_stream.size() && this->token_stream[i].type != TokenType::RPARENT)
+            {
                 i++;
-                primaryExpNode->children.push_back(son);
-                primaryExpNode->value = son->value;
+            }
+            i++;
+            nd->children.push_back(son);
+            nd->value = son->value;
+            return nd;
         }
-        else{
-                T son = Parser::parse_number(primaryExpNode);
-                primaryExpNode->children.push_back(son);
-                primaryExpNode->value = son->value;
-        }
-        return primaryExpNode;
+        label2:
+            T son = Parser::parse_number(nd);
+            nd->children.push_back(son);
+            nd->value = son->value;
+        return nd;
     }
+
     template<typename T>
     T parse_number(T fa){
-        T numberNode = new AstNode(NodeType::NUMBER, fa);
+        T nd = new AstNode(NodeType::NUMBER, fa);
         std::string value = this->token_stream[this->index++].value;
-        int nd_val = 0;
-        uint32_t base = 10;
+        int ndVal = 0;
+        uint32_t radixBase = 10;
         if (value.length() < 2){
-                value = "0d" + value;
+            value = "0d" + value;
         }
-        if (value.length() >= 2){
-                switch (value[1])
-                {
-                case 'x':
-                        base = 16;
-                        break;
-                case 'b':
-                        base = 2;
-                        break;
-                case 'd':
-                        base = 10;
-                        break;
-                default:
-                        value = "0d" + value;
-                        base = 10;
-                        break;
-                }
+        std::string ss = value.substr(0, 2);
+        if (ss=="0x")
+            radixBase = 16;
+        else if (ss == "0b")
+            radixBase = 2;
+        else if (ss == "0d"){
+            radixBase = 10;
         }
-        value = value.substr(2);
-        if (value[0] == '0')
-            base = 8;
-        for (char ch : value)
+        else if (ss[0] == '0'){
+            radixBase = 8;
+            value = "0o" + value;
+        }
+        else{
+            radixBase = 10;
+            value = "0d" + value;
+        }
+        for (size_t i = 0; i < value.substr(2).size();i++)
         {
         #ifdef DEBUG_PARSER
-                        std::cout << "Targeted Val: " <<value <<" ,Cur Val: "<<nd_val << std::endl;
-                #endif
-                uint32_t radixVal = (ch>='a' && ch<='f') ? ch - 'a' + 10 :
-                               (ch>='A' && ch<='F') ? ch - 'A' + 10 : ch - '0';
-                nd_val = nd_val * base + radixVal;
+                std::cout << "Targeted Val: " <<value <<" ,Cur Val: "<<ndVal << std::endl;
+        #endif
+                char ch = value[i + 2];
+                uint32_t radixVal;
+                if (ch >= 'a' && ch <= 'f')
+                    radixVal = ch - 'a' + 10;
+                else if (ch >= 'A' && ch <= 'F')
+                    radixVal = ch - 'A' + 10;
+                else
+                    radixVal = ch - '0';
+                ndVal = ndVal * radixBase + radixVal;
         }
-        numberNode->value = nd_val;
-        return numberNode;
+        nd->value = ndVal;
+        return nd;
     }
 
 // for debug, u r not required to use this
@@ -506,8 +512,6 @@ int main(){
     auto root = parser.get_abstract_syntax_tree();
     // u may add function here to analysis the AST, or do this in parsing
     // like get_value(root);
-    
-
     std::cout << root->value;
 
     return 0;
