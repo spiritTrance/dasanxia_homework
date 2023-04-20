@@ -38,5 +38,6 @@
         执行方法: python run.py [s0/s1/s2/S]
     score.py: 将 run.py 生成的编译结果与标准结果进行对比并打分
         执行方法: python score.py [s0/s1/s2/S]
+
     test.py 编译生成 compiler 可执行文件，执行并生成结果，最后对结果进行判断并打分
         执行方法: python test.py [s0/s1/s2/S]

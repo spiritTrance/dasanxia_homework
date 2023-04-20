@@ -12,7 +12,8 @@
                 "_UNICODE"
             ],
             "windowsSdkVersion": "10.0.22621.0",
-            "compilerPath": "C:/Program Files (x86)/Dev-Cpp/MinGW64/bin/g++.exe",
+            // "compilerPath": "C:/Program Files (x86)/Dev-Cpp/MinGW64/bin/g++.exe",
+            "compilerPath": "/usr/bin/gcc",
             "intelliSenseMode": "windows-msvc-x64"
         }
     ],

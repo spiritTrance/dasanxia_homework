@@ -64,3 +64,6 @@ ConstExp -> AddExp
 # 符号[...]表示方括号内包含的为可选项；
 # 符号{...}表示花括号内包含的为可重复 0 次或多次的项；
 # 因为为|的情况实在太难处理，因此对文法进行等价处理
+
+# log 1: stmt 的Lval和Exp的First集合都有Ident，麻了
+# log 2: stmt 的Lval和Exp忘记写assign

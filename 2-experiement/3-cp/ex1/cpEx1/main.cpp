@@ -10,8 +10,6 @@
 using std::string;
 using std::vector;
 
-
-
 /**
  * commad line:
  * compiler <src_filename> -step -o <output_filename> [opt]
@@ -33,6 +31,7 @@ int main(int argc, char** argv) {
     string des = argv[4];
     std::ofstream output_file = std::ofstream(des);
     assert(output_file.is_open() && "output file can not open");
+
     frontend::Scanner scanner(src);
     vector<frontend::Token> tk_stream = scanner.run();
 

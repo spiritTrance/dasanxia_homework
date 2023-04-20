@@ -29,7 +29,6 @@ link_directories(./lib)
 aux_source_directory(./src/front FRONT_SRC)
 add_library(Front ${FRONT_SRC})
 
-
 # executable
 add_executable(compiler main.cpp)
 

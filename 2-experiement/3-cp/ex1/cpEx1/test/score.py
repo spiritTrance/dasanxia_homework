@@ -40,7 +40,7 @@ def score_compiler(arg1):
                     # print(cmd)
                     cp = subprocess.run(cmd, shell=True, stderr=subprocess.DEVNULL, stdout=subprocess.PIPE)
                     if cp.returncode != 0:
-                        record[file] = {"retval": cp.returncode, "err_detail": cp.stdout}
+                        record[file] = {"retval": cp.returncode, "err_detail": "diff test failed"}
                     else:
                         score += 1
                         record[file] = {"retval": 0}
