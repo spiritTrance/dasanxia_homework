@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 class grammarAnalysiser(object):
     def __init__ (self, path: str):
         with open(path, encoding="utf8") as f:
@@ -104,7 +103,7 @@ class grammarAnalysiser(object):
             for v in self.grammar[i]:
                 s = s.intersection(self.firstSet[v])
                 if len(self.grammar[i]) > 1:
-                    print(self.int2sign[i], self.int2sign[v], self.firstSet[v])
+                    print("\t",self.int2sign[i], self.int2sign[v], self.firstSet[v])
             if len(self.grammar[i]) > 1:
                 print("Ans =", s)
         print(self.int2sign[8], self.int2sign[9])
@@ -118,5 +117,5 @@ class grammarAnalysiser(object):
 grammarAnalysiser = grammarAnalysiser("./test.txt")
 grammarAnalysiser.findLeftRecursion()
 grammarAnalysiser.findFirstSet()
-grammarAnalysiser.printAllNonTreminalDecl()
-# grammarAnalysiser.determineFirstIntersection()
+# grammarAnalysiser.printAllNonTreminalDecl()
+grammarAnalysiser.determineFirstIntersection()
