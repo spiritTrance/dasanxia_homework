@@ -45,8 +45,8 @@ map<std::string,ir::Function*>* get_lib_funcs();
 
 // definition of symbol table
 struct SymbolTable{
-    vector<ScopeInfo> scope_stack;
-    map<std::string,ir::Function*> functions;
+    vector<ScopeInfo> scope_stack;      // idents record, sort by scope
+    map<std::string,ir::Function*> functions;   // record functions
 
     /**
      * @brief enter a new scope, record the infomation in scope stacks
@@ -93,7 +93,7 @@ struct SymbolTable{
 // singleton class
 struct Analyzer {
     int tmp_cnt;
-    vector<ir::Instruction*> g_init_inst;
+    vector<ir::Instruction*> g_init_inst;           // 全局区域的inst
     SymbolTable symbol_table;
 
     /**
@@ -103,6 +103,37 @@ struct Analyzer {
 
     // analysis functions
     ir::Program get_ir_program(CompUnit*);
+    void analysisCompUnit(CompUnit* node, ir::Program& buffer);
+    void analysisDecl(Decl* node, ir::Program& buffer);
+    void analysisFuncDef(FuncDef* node, ir::Program& buffer);
+    void analysisConstDecl(ConstDecl* node, ir::Program& buffer);
+    void analysisVarDecl(VarDecl* node, ir::Program& buffer);
+    void analysisBType(BType* node, ir::Program& buffer);
+    void analysisConstDef(ConstDef* node, ir::Program& buffer);
+    void analysisConstInitVal(ConstInitVal* node, ir::Program& buffer);
+    void analysisConstExp(ConstExp* node, ir::Program& buffer);
+    void analysisVarDef(VarDef* node, ir::Program& buffer);
+    void analysisInitVal(InitVal* node, ir::Program& buffer);
+    void analysisExp(Exp* node, ir::Program& buffer);
+    void analysisFuncType(FuncType* node, ir::Program& buffer);
+    void analysisFuncFParam(FuncFParam* node, ir::Program& buffer);
+    void analysisFuncFParams(FuncFParams* node, ir::Program& buffer);
+    void analysisBlock(Block* node, ir::Program& buffer);
+    void analysisBlockItem(BlockItem* node, ir::Program& buffer);
+    void analysisStmt(Stmt* node, ir::Program& buffer);
+    void analysisLVal(LVal* node, ir::Program& buffer);
+    void analysisAddExp(AddExp* node, ir::Program& buffer);
+    void analysisCond(Cond* node, ir::Program& buffer);
+    void analysisLOrExp(LOrExp* node, ir::Program& buffer);
+    void analysisNumber(Number* node, ir::Program& buffer);
+    void analysisPrimaryExp(PrimaryExp* node, ir::Program& buffer);
+    void analysisUnaryExp(UnaryExp* node, ir::Program& buffer);
+    void analysisUnaryOp(UnaryOp* node, ir::Program& buffer);
+    void analysisFuncRParams(FuncRParams* node, ir::Program& buffer);
+    void analysisMulExp(MulExp* node, ir::Program& buffer);
+    void analysisRelExp(RelExp* node, ir::Program& buffer);
+    void analysisEqExp(EqExp* node, ir::Program& buffer);
+    void analysisLAndExp(LAndExp* node, ir::Program& buffer);
 
     // reject copy & assignment
     Analyzer(const Analyzer&) = delete;

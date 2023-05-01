@@ -5,12 +5,23 @@
 #include <string>
 
 
-ir::Function::Function(): name("null"), returnType(Type::null), ParameterList(std::vector<ir::Operand>()), InstVec(std::vector<ir::Instruction*>()) {}
+ir::Function::Function():\
+    name("null"), \
+    returnType(Type::null), \
+    ParameterList(std::vector<ir::Operand>()), \
+    InstVec(std::vector<ir::Instruction*>()) {}
 
-ir::Function::Function(const std::string& n, const ir::Type& type): name(n), returnType(type), ParameterList(std::vector<ir::Operand>()), InstVec(std::vector<ir::Instruction*>()) { }
+ir::Function::Function(const std::string& n, const ir::Type& type): \
+    name(n), \
+    returnType(type), \
+    ParameterList(std::vector<ir::Operand>()), \
+    InstVec(std::vector<ir::Instruction*>()) { }
 
-ir::Function::Function(const std::string& n, const std::vector<Operand>& pl, const ir::Type& type):
-    name(n), returnType(type), ParameterList(pl), InstVec(std::vector<ir::Instruction*>()) {}
+ir::Function::Function(const std::string& n, const std::vector<Operand>& pl, const ir::Type& type): \
+    name(n), \
+    returnType(type), \
+    ParameterList(pl), \
+    InstVec(std::vector<ir::Instruction*>()) {}
 
 void ir::Function::addInst(ir::Instruction* inst) {
     InstVec.push_back(inst);
