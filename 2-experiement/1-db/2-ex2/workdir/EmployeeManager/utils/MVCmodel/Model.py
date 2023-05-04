@@ -1,7 +1,7 @@
 import psycopg2
 from EmployeeManager.utils.EntityClass import Department, Employee, Project
 class Connecter(object):
-    def __init__(self, dataBaseName: str, userName: str, pwd: str, host: str, portNumber: str) -> None:
+    def __init__(self, dataBaseName: str, userName: str, pwd: str, host: str, portNumber: str):
         print("连接数据库...")
         self.conn=psycopg2.connect(\
             database=dataBaseName, \
@@ -18,9 +18,8 @@ class Connecter(object):
     def __del__(self):
         self.conn.commit()
         self.conn.close()
-
 class EmployeeProcessor(object):
-    def __init__(self, conn) -> None:
+    def __init__(self, conn):
         self.conn = conn
     # inserter 
     def addEmployer(self, employee: Employee):
@@ -35,7 +34,7 @@ class EmployeeProcessor(object):
         
         returns
         -------
-        None
+        bool: whether operation valid
         '''
         try:
             cur = self.conn.cursor()
@@ -46,10 +45,11 @@ class EmployeeProcessor(object):
                 (ans + 1, employee.sName, employee.sGender, employee.nAge, \
                 employee.job, employee.department, employee.salary, employee.ranking))
             self.conn.commit()
+            print("操作成功！")
+            return True
         except:
             print("请检查你的输入是否合法！")
-        finally:
-            return
+            return False
     # updater
     def updateGender(self, eid, Gender):
         '''
@@ -63,37 +63,34 @@ class EmployeeProcessor(object):
         
         returns
         -------
-        None
+        bool: whether operation valid
         '''
         try:
             cur = self.conn.cursor()
-            cur.execute("update employee set Gender = %s where eid = %s", (Gender, eid))
+            cur.execute("update employee set Gender = %s where eid = \%s", (Gender, eid))
+            return True
         except:
-            print("请检查你的输入是否合法，以及用户是否存在")
-        finally:
-            return
+            return False
     def updateEName(self, eid, EName):
         '''
         function
         --------
         update EName
-
+        
         params
         ------
         eid: employer's id        EName: employer's EName
-
+        
         returns
         -------
-        None
+        bool: whether operation valid
         '''
         try:
             cur = self.conn.cursor()
-            cur.execute("update employee set EName = %s where eid = %s", (EName, eid))
-        except Exception as e:
-            print(e)
-            print("请检查你的输入是否合法，以及用户是否存在")
-        finally:
-            return
+            cur.execute("update employee set EName = %s where eid = \%s", (EName, eid))
+            return True
+        except:
+            return False
     def updateAge(self, eid, Age):
         '''
         function
@@ -106,15 +103,14 @@ class EmployeeProcessor(object):
 
         returns
         -------
-        None
+        bool: whether operation valid
         '''
         try:
             cur = self.conn.cursor()
-            cur.execute("update employee set Age = %s where eid = %s", (Age, eid))
+            cur.execute("update employee set Age = %s where eid = \%s", (Age, eid))
+            return True
         except:
-            print("请检查你的输入是否合法，以及用户是否存在")
-        finally:
-            return
+            return False
     def updateJob(self, eid, Job):
         '''
         function
@@ -127,15 +123,14 @@ class EmployeeProcessor(object):
 
         returns
         -------
-        None
+        bool: whether operation valid
         '''
         try:
             cur = self.conn.cursor()
-            cur.execute("update employee set Job = %s where eid = %s", (Job, eid))
+            cur.execute("update employee set Job = %s where eid = \%s", (Job, eid))
+            return True
         except:
-            print("请检查你的输入是否合法，以及用户是否存在")
-        finally:
-            return
+            return False
     def updateDeptName(self, eid, DeptName):
         '''
         function
@@ -148,15 +143,14 @@ class EmployeeProcessor(object):
 
         returns
         -------
-        None
+        bool: whether operation valid
         '''
         try:
             cur = self.conn.cursor()
-            cur.execute("update employee set DeptName = %s where eid = %s", (DeptName, eid))
+            cur.execute("update employee set DeptName = %s where eid = \%s", (DeptName, eid))
+            return True
         except:
-            print("请检查你的输入是否合法，以及用户是否存在")
-        finally:
-            return
+            return False
     def updateSalary(self, eid, Salary):
         '''
         function
@@ -169,15 +163,14 @@ class EmployeeProcessor(object):
 
         returns
         -------
-        None
+        bool: whether operation valid
         '''
         try:
             cur = self.conn.cursor()
-            cur.execute("update employee set Salary = %s where eid = %s", (Salary, eid))
+            cur.execute("update employee set Salary = %s where eid = \%s", (Salary, eid))
+            return True
         except:
-            print("请检查你的输入是否合法，以及用户是否存在")
-        finally:
-            return
+            return False
     def updateRanking(self, eid, Ranking):
         '''
         function
@@ -190,15 +183,14 @@ class EmployeeProcessor(object):
 
         returns
         -------
-        None
+        bool: whether operation valid
         '''
         try:
             cur = self.conn.cursor()
-            cur.execute("update employee set Ranking = %s where eid = %s", (Ranking, eid))
+            cur.execute("update employee set Ranking = %s where eid = \%s", (Ranking, eid))
+            return True
         except:
-            print("请检查你的输入是否合法，以及用户是否存在")
-        finally:
-            return
+            return False
     # queryer
     def queryIdByName(self, sName:str):
         '''
@@ -244,7 +236,8 @@ class EmployeeProcessor(object):
         except Exception as e:
             print("请检查是否为合法输入！")
             print(e)
-            ans = None
+            ans = []
+
         finally:
             return ans  
     def queryInfoByName(self, sName: str):
@@ -306,16 +299,14 @@ class EmployeeProcessor(object):
 
         returns
         -------
-        None
+        bool: whether operation valid
         '''
         try:
             cur = self.conn.cursor()
             cur.execute("delete from employee where EID = %s", [EID])
-            print("删除成功！")
+            return True
         except:
-            print("请检查你的输入是否合法!")
-        finally:
-            return
+            return False
     def deleteByGender(self, Gender):
         '''
         function
@@ -328,16 +319,14 @@ class EmployeeProcessor(object):
 
         returns
         -------
-        None
+        bool: whether operation valid
         '''
         try:
             cur = self.conn.cursor()
             cur.execute("delete from employee where Gender = %s", [Gender])
-            print("删除成功！")
+            return True
         except:
-            print("请检查你的输入是否合法!")
-        finally:
-            return
+            return False
     def deleteByEName(self, EName):
         '''
         function
@@ -350,21 +339,19 @@ class EmployeeProcessor(object):
 
         returns
         -------
-        None
+        bool: whether operation valid
         '''
         try:
             cur = self.conn.cursor()
             cur.execute("delete from employee where EName = %s", [EName])
-            print("删除成功！")
+            return True
         except:
-            print("请检查你的输入是否合法!")
-        finally:
-            return
+            return False
     def deleteByAge(self, Age):
         '''
         function
         --------
-        delete employee whose age bigger than given age
+        delete employee by Age
 
         params
         ------
@@ -372,16 +359,14 @@ class EmployeeProcessor(object):
 
         returns
         -------
-        None
+        bool: whether operation valid
         '''
         try:
             cur = self.conn.cursor()
-            cur.execute("delete from employee where Age > %s", [Age])
-            print("删除成功！")
+            cur.execute("delete from employee where Age = %s", [Age])
+            return True
         except:
-            print("请检查你的输入是否合法!")
-        finally:
-            return
+            return False
     def deleteByJob(self, Job):
         '''
         function
@@ -394,16 +379,14 @@ class EmployeeProcessor(object):
 
         returns
         -------
-        None
+        bool: whether operation valid
         '''
         try:
             cur = self.conn.cursor()
             cur.execute("delete from employee where Job = %s", [Job])
-            print("删除成功！")
+            return True
         except:
-            print("请检查你的输入是否合法!")
-        finally:
-            return
+            return False
     def deleteByDeptName(self, DeptName):
         '''
         function
@@ -416,16 +399,34 @@ class EmployeeProcessor(object):
 
         returns
         -------
-        None
+        bool: whether operation valid
         '''
         try:
             cur = self.conn.cursor()
             cur.execute("delete from employee where DeptName = %s", [DeptName])
-            print("删除成功！")
+            return True
         except:
-            print("请检查你的输入是否合法!")
-        finally:
-            return
+            return False
+    def deleteBySalary(self, Salary):
+        '''
+        function
+        --------
+        delete employee by Salary
+
+        params
+        ------
+        Salary: employer's Salary
+
+        returns
+        -------
+        bool: whether operation valid
+        '''
+        try:
+            cur = self.conn.cursor()
+            cur.execute("delete from employee where Salary = %s", [Salary])
+            return True
+        except:
+            return False
     def deleteByRanking(self, Ranking):
         '''
         function
@@ -438,19 +439,17 @@ class EmployeeProcessor(object):
 
         returns
         -------
-        None
+        bool: whether operation valid
         '''
         try:
             cur = self.conn.cursor()
             cur.execute("delete from employee where Ranking = %s", [Ranking])
-            print("删除成功！")
+            return True
         except:
-            print("请检查你的输入是否合法!")
-        finally:
-            return
-    
+            return False
+
 class ProjectProcessor(object):
-    def __init__(self, conn) -> None:
+    def __init__(self, conn):
         self.conn = conn
     # Create
     def addProject(self, project: Project):
@@ -465,19 +464,22 @@ class ProjectProcessor(object):
         
         return
         ------
-        None
+        bool: whether operation valid
+
         '''
         try:
             cur = self.conn.cursor()
             cur.execute("INSERT INTO Project VALUES(%s, %s, %s, %s)", \
                 (project.projectName, project.departmentName, project.startTime, project.endTime)
             )
+            self.conn.commit()
+            print("操作成功！")
+            return True
         except Exception as e:
             print("请检查输入合法性！")
-        finally:
-            return
+            return False
     # Retrieve
-    def getProjectNameByDepartment(self, sDeptName):
+    def queryProjectNameByDepartment(self, sDeptName):
         try:
             cur = self.conn.cursor()
             cur.execute("SELECT projectname FROM Project where deptname = %s", [sDeptName])
@@ -487,7 +489,7 @@ class ProjectProcessor(object):
             ans = []
         finally:
             return ans
-    def getDepartmentNameByProject(self, sProject):
+    def queryDepartmentNameByProject(self, sProject):
         try:
             cur = self.conn.cursor()
             cur.execute("SELECT deptname FROM Project where projectname = %s", [sProject])
@@ -498,14 +500,299 @@ class ProjectProcessor(object):
         finally:
             return ans
     # Update
-    # FIXME TODO here
-    # Delete    
-class DepartmentProcessor(object):
-    def __init__(self) -> None:
-        pass
+    def updateProjectName(self, newName, projectName):
+        '''
+        function
+        --------
+        更新项目名字
+        
+        params
+        ------
+        newName: 要更换上的新名字
+        projectName: 要更改的项目名
+        
+        return
+        ------
+        bool: whether operation valid
 
-class Employee_prjProcessor(object):
-    def __init__(self) -> None:
+        '''
+        try:
+            cur = self.conn.cursor()
+            cur.execute("update project set projectname = %s where projectname = %s", (newName, projectName))
+            self.conn.commit()
+            return True
+        except:
+            return False
+    def updateDeptname(self, Deptname, projectName):
+        '''
+        function
+        --------
+        update Deptname of table project
+
+        params
+        ------
+        Deptname: the Deptname of the given project
+        projectName: 涉及更改的项目名
+
+        return
+        ------
+        bool: whether operation valid
+        '''
+        try:
+            cur = self.conn.cursor()
+            cur.execute("update project set Deptname = %s where projectname = %s", (Deptname, projectName))
+            return True
+        except:
+            return False
+    def updateStarttime(self, Starttime, projectName):
+        '''
+        function
+        --------
+        update Starttime of table project
+
+        params
+        ------
+        Starttime: the Starttime of the given project
+        projectName: 涉及更改的项目名
+
+        return
+        ------
+        bool: whether operation valid
+        '''
+        try:
+            cur = self.conn.cursor()
+            cur.execute("update project set Starttime = %s where projectname = %s", (Starttime, projectName))
+            return True
+        except:
+            return False
+    def updateEndtime(self, Endtime, projectName):
+        '''
+        function
+        --------
+        update Endtime of table project
+
+        params
+        ------
+        Endtime: the Endtime of the given project
+        projectName: 涉及更改的项目名
+
+        return
+        ------
+        bool: whether operation valid
+        '''
+        try:
+            cur = self.conn.cursor()
+            cur.execute("update project set Endtime = %s where projectname = %s", (Endtime, projectName))
+            return True
+        except:
+            return False
+    # Delete    
+    def deleteByProjectName(self, ProjectName):
+        '''
+        function
+        --------
+        delete project by ProjectName
+
+        params
+        ------
+        ProjectName: ProjectName's ProjectName
+
+        returns
+        -------
+        bool: whether operation valid
+        '''
+        try:
+            cur = self.conn.cursor()
+            cur.execute("delete from project where ProjectName = %s", [ProjectName])
+            return True
+        except:
+            return False
+    def deleteByDeptname(self, Deptname):
+        '''
+        function
+        --------
+        delete project by Deptname
+
+        params
+        ------
+        Deptname: Deptname's Deptname
+
+        returns
+        -------
+        bool: whether operation valid
+        '''
+        try:
+            cur = self.conn.cursor()
+            cur.execute("delete from project where Deptname = %s", [Deptname])
+            return True
+        except:
+            return False
+    def deleteByStarttime(self, Starttime):
+        '''
+        function
+        --------
+        delete project by Starttime
+
+        params
+        ------
+        Starttime: Starttime's Starttime
+
+        returns
+        -------
+        bool: whether operation valid
+        '''
+        try:
+            cur = self.conn.cursor()
+            cur.execute("delete from project where Starttime = %s", [Starttime])
+            return True
+        except:
+            return False
+    def deleteByEndtime(self, Endtime):
+        '''
+        function
+        --------
+        delete project by Endtime
+
+        params
+        ------
+        Endtime: Endtime's Endtime
+
+        returns
+        -------
+        bool: whether operation valid
+        '''
+        try:
+            cur = self.conn.cursor()
+            cur.execute("delete from project where Endtime = %s", [Endtime])
+            return True
+        except:
+            return False
+
+class DepartmentProcessor(object):
+    def __init__(self):
         pass
+    # Create
+    def addDepartment(self, dept: Department):
+        '''
+        function
+        --------
+        增加部门
+        
+        params
+        ------
+        project: object of Project
+        
+        return
+        ------
+        bool: whether operation valid
+
+        '''
+        try:
+            cur = self.conn.cursor()
+            cur.execute("INSERT INTO Department VALUES(%s, %s)", \
+                (dept.departmentName, dept.principalID)
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            return False
+    # Retrieve
+    def queryCommanderID(self, deptName):
+        try:
+            cur = self.conn.cursor()
+            cur.execute("SELECT EID FROM department where deptname = %s", [deptName])
+            ans = cur.fetchall()
+        except Exception as e:
+            ans = []
+        finally:
+            self.conn.commit()
+            return ans
+    def queryDepartment(self, commanderID):
+        try:
+            cur = self.conn.cursor()
+            cur.execute("SELECT DEPTNAME FROM department where EID = %s", [commanderID])
+            ans = cur.fetchall()
+        except Exception as e:
+            ans = []
+        finally:
+            return ans
+    # Update
+    def updateCommanderID(self, cmdID, deptName):
+        '''
+        function
+        --------
+        update commander id of table department
+
+        params
+        ------
+        cmdID: the ID of commander
+        deptName: correlated department name
+
+        return
+        ------
+        bool: whether operation valid
+        '''
+        try:
+            cur = self.conn.cursor()
+            cur.execute("update department set EUD = %s where DEPTNAME = %s", (cmdID, deptName))
+            return True
+        except:
+            return False
+    # Delete
+    def deleteByEID(self, EID):
+        '''
+        function
+        --------
+        delete department entry by EID
+
+        params
+        ------
+        EID: department entry's EID
+
+        returns
+        -------
+        bool: whether operation valid
+        '''
+        try:
+            cur = self.conn.cursor()
+            cur.execute("delete from department where EID = %s", [EID])
+            return True
+        except:
+            return False
+    def deleteByDEPTNAME(self, DEPTNAME):
+        '''
+        function
+        --------
+        delete department entry by DEPTNAME
+
+        params
+        ------
+        DEPTNAME: department entry's DEPTNAME
+
+        returns
+        -------
+        bool: whether operation valid
+        '''
+        try:
+            cur = self.conn.cursor()
+            cur.execute("delete from department where DEPTNAME = %s", [DEPTNAME])
+            return True
+        except:
+            return False
+class Employee_prjProcessor(object):
+    def __init__(self, conn):
+        self.conn = conn
+    # Create
+    def addEID_PrjPair(self, eid, prjName):
+        try:
+            cur = self.conn.cursor()
+            cur.execute("INSERT")
+            cur.commit()
+            return True
+        except:
+            return False
+    # Retrieve
     
+    # Update
     
+    # Delete
