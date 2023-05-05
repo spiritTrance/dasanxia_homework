@@ -34,7 +34,7 @@ class Connecter(object):
 class EmployeeProcessor(object):
     def __init__(self, conn):
         self.conn = conn
-    # Create
+    # inserter 
     def addEmployer(self, employee: Employee):
         '''
         function
@@ -59,11 +59,11 @@ class EmployeeProcessor(object):
                 employee.job, employee.department, employee.salary, employee.ranking))
             self.conn.commit()
             print("操作成功！")
-            return True, ans + 1
+            return True
         except:
             print("请检查你的输入是否合法！")
-            return False, -1
-    # Retrieve
+            return False
+    # updater
     def updateGender(self, eid, Gender):
         '''
         function
@@ -211,7 +211,7 @@ class EmployeeProcessor(object):
             return True
         except:
             return False
-    # Update
+    # queryer
     def queryIdByName(self, sName:str):
         '''
         function
@@ -306,7 +306,7 @@ class EmployeeProcessor(object):
             ans = []
         finally:
             return ans    
-    # Delete
+    # deleter
     def deleteByEID(self, EID):
         '''
         function
@@ -738,19 +738,10 @@ class DepartmentProcessor(object):
             ans = []
         finally:
             return ans
-    def queryDepartmentByCommanderID(self, commanderID):
+    def queryDepartment(self, commanderID):
         try:
             cur = self.conn.cursor()
             cur.execute("SELECT DEPTNAME FROM department where EID = %s", [commanderID])
-            ans = cur.fetchall()
-        except Exception as e:
-            ans = []
-        finally:
-            return ans
-    def queryDepartmentList(self):
-        try:
-            cur = self.conn.cursor()
-            cur.execute("SELECT DEPTNAME FROM department")
             ans = cur.fetchall()
         except Exception as e:
             ans = []
