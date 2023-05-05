@@ -18,6 +18,7 @@ def genCode_employeeUpd(ls):
         try:
             cur = self.conn.cursor()
             cur.execute("update employee set {:s} = %s where eid = \%s", ({:s}, eid))
+            self.conn.commit()
             return True
         except:
             return False\n'''.format(s, s, s, s, s, s, s)
@@ -41,6 +42,7 @@ def genCode_employeeDel(ls):
         try:
             cur = self.conn.cursor()
             cur.execute("delete from employee where {:s} = %s", [{:s}])
+            self.conn.commit()
             return True
         except:
             return False\n'''.format(s, s, s, s, s, s, s, s, s, s)
@@ -121,11 +123,11 @@ def genCode_departmentDel(ls):
         )
 
 
-# genCode_employeeUpd(["Gender", "EName", "Age", "Job", "DeptName", "Salary", "Ranking"])
+genCode_employeeUpd(["Gender", "EName", "Age", "Job", "DeptName", "Salary", "Ranking"])
 # genCode_employeeDel(["EID","Gender", "EName", "Age", "Job", "DeptName", "Salary", "Ranking"])
 # genCode_projectUpd(["Deptname","Starttime", "Endtime"])
 # genCode_projectDel(["ProjectName","Deptname","Starttime", "Endtime"])
-genCode_departmentDel(["EID","DEPTNAME"])
+# genCode_departmentDel(["EID","DEPTNAME"])
 
 
     

@@ -2,7 +2,7 @@
 doc
 '''
 from EmployeeManager.utils.EntityClass import Department, Employee, Project
-from EmployeeManager.utils.MVCmodel import Controller, Model, View
+from EmployeeManager.utils.MVCmodel import Model, View
 from configparser import ConfigParser
 
 PROJECT_NAME = "EmployeeManager"
@@ -20,13 +20,16 @@ if __name__ == '__main__':
         host=conf["databaseSetting"]["host"], \
         portNumber=conf["databaseSetting"]["portNumber"]
     )
-    e = Employee.Employee("黄昊", "M", 20, "搞事", "advertise", 15000, "S")
-    prc = Model.EmployeeProcessor(connecter.getConnector())
+    # e = Employee.Employee("黄昊", "M", 20, "搞事", "advertise", 15000, "S")
+    # prc = Model.Employee_prjProcessor(connecter.getConnector())
     # prc.updateEName(10, "傻逼")
-    print(prc.queryIDNamePairByDept('advertise'))
-    prc.deleteByEID(4)
+    # prc.addEID_PrjPair(11, "对于摸鱼需求的市场调研")    
+    # prc.addEID_PrjPair(9, "对于摸鱼需求的市场调研")    
+    # prc.deleteByPair(9, "对于摸鱼需求的市场调研")    
+    # cur = connecter.getConnector().cursor()
+    # cur.execute("SELECT * from EM_PRJ")
+    # ans = cur.fetchall()
+    # print(ans)
     # GUI图形界面
-    # employeeManagerGUI = View.EmployeeManagerGUI(
-    #     helperPath="./" + PROJECT_NAME+ "/" + conf["filePath"]["helperPath"]\
-    # )
+    cmdView = View.CmdView(connector=connecter)
     

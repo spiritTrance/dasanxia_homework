@@ -10,11 +10,24 @@ class Connecter(object):
             host=host, \
             port=portNumber \
         )
+        self.database = dataBaseName
+        self.user = userName
+        self.password = pwd
+        self.host = host
+        self.port = portNumber
         print("连接成功！")
-        
     def getConnector(self):
+        if self.conn.isolation_level:
+            return self.conn
+        else:
+            self.conn=psycopg2.connect(\
+                database=self.database, \
+                user=self.user, \
+                password=self.password, \
+                host=self.host, \
+                port=self.port \
+            )
         return self.conn
-    
     def __del__(self):
         self.conn.commit()
         self.conn.close()
@@ -56,11 +69,11 @@ class EmployeeProcessor(object):
         function
         --------
         update Gender
-        
+
         params
         ------
         eid: employer's id        Gender: employer's Gender
-        
+
         returns
         -------
         bool: whether operation valid
@@ -68,6 +81,7 @@ class EmployeeProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("update employee set Gender = %s where eid = \%s", (Gender, eid))
+            self.conn.commit()
             return True
         except:
             return False
@@ -76,11 +90,11 @@ class EmployeeProcessor(object):
         function
         --------
         update EName
-        
+
         params
         ------
         eid: employer's id        EName: employer's EName
-        
+
         returns
         -------
         bool: whether operation valid
@@ -88,6 +102,7 @@ class EmployeeProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("update employee set EName = %s where eid = \%s", (EName, eid))
+            self.conn.commit()
             return True
         except:
             return False
@@ -108,6 +123,7 @@ class EmployeeProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("update employee set Age = %s where eid = \%s", (Age, eid))
+            self.conn.commit()
             return True
         except:
             return False
@@ -128,6 +144,7 @@ class EmployeeProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("update employee set Job = %s where eid = \%s", (Job, eid))
+            self.conn.commit()
             return True
         except:
             return False
@@ -148,6 +165,7 @@ class EmployeeProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("update employee set DeptName = %s where eid = \%s", (DeptName, eid))
+            self.conn.commit()
             return True
         except:
             return False
@@ -168,6 +186,7 @@ class EmployeeProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("update employee set Salary = %s where eid = \%s", (Salary, eid))
+            self.conn.commit()
             return True
         except:
             return False
@@ -188,6 +207,7 @@ class EmployeeProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("update employee set Ranking = %s where eid = \%s", (Ranking, eid))
+            self.conn.commit()
             return True
         except:
             return False
@@ -292,11 +312,11 @@ class EmployeeProcessor(object):
         function
         --------
         delete employee by EID
-
+        
         params
         ------
         EID: employer's EID
-
+        
         returns
         -------
         bool: whether operation valid
@@ -304,6 +324,7 @@ class EmployeeProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("delete from employee where EID = %s", [EID])
+            self.conn.commit()
             return True
         except:
             return False
@@ -324,6 +345,7 @@ class EmployeeProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("delete from employee where Gender = %s", [Gender])
+            self.conn.commit()
             return True
         except:
             return False
@@ -344,6 +366,7 @@ class EmployeeProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("delete from employee where EName = %s", [EName])
+            self.conn.commit()
             return True
         except:
             return False
@@ -364,6 +387,7 @@ class EmployeeProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("delete from employee where Age = %s", [Age])
+            self.conn.commit()
             return True
         except:
             return False
@@ -384,6 +408,7 @@ class EmployeeProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("delete from employee where Job = %s", [Job])
+            self.conn.commit()
             return True
         except:
             return False
@@ -404,6 +429,7 @@ class EmployeeProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("delete from employee where DeptName = %s", [DeptName])
+            self.conn.commit()
             return True
         except:
             return False
@@ -424,6 +450,7 @@ class EmployeeProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("delete from employee where Salary = %s", [Salary])
+            self.conn.commit()
             return True
         except:
             return False
@@ -444,10 +471,10 @@ class EmployeeProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("delete from employee where Ranking = %s", [Ranking])
+            self.conn.commit()
             return True
         except:
             return False
-
 class ProjectProcessor(object):
     def __init__(self, conn):
         self.conn = conn
@@ -473,7 +500,6 @@ class ProjectProcessor(object):
                 (project.projectName, project.departmentName, project.startTime, project.endTime)
             )
             self.conn.commit()
-            print("操作成功！")
             return True
         except Exception as e:
             print("请检查输入合法性！")
@@ -541,6 +567,7 @@ class ProjectProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("update project set Deptname = %s where projectname = %s", (Deptname, projectName))
+            self.conn.commit()
             return True
         except:
             return False
@@ -562,6 +589,7 @@ class ProjectProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("update project set Starttime = %s where projectname = %s", (Starttime, projectName))
+            self.conn.commit()
             return True
         except:
             return False
@@ -583,6 +611,7 @@ class ProjectProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("update project set Endtime = %s where projectname = %s", (Endtime, projectName))
+            self.conn.commit()
             return True
         except:
             return False
@@ -604,6 +633,7 @@ class ProjectProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("delete from project where ProjectName = %s", [ProjectName])
+            self.conn.commit()
             return True
         except:
             return False
@@ -624,6 +654,7 @@ class ProjectProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("delete from project where Deptname = %s", [Deptname])
+            self.conn.commit()
             return True
         except:
             return False
@@ -644,6 +675,7 @@ class ProjectProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("delete from project where Starttime = %s", [Starttime])
+            self.conn.commit()
             return True
         except:
             return False
@@ -664,13 +696,13 @@ class ProjectProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("delete from project where Endtime = %s", [Endtime])
+            self.conn.commit()
             return True
         except:
             return False
-
 class DepartmentProcessor(object):
-    def __init__(self):
-        pass
+    def __init__(self, conn):
+        self.conn = conn
     # Create
     def addDepartment(self, dept: Department):
         '''
@@ -705,7 +737,6 @@ class DepartmentProcessor(object):
         except Exception as e:
             ans = []
         finally:
-            self.conn.commit()
             return ans
     def queryDepartment(self, commanderID):
         try:
@@ -734,7 +765,8 @@ class DepartmentProcessor(object):
         '''
         try:
             cur = self.conn.cursor()
-            cur.execute("update department set EUD = %s where DEPTNAME = %s", (cmdID, deptName))
+            cur.execute("update department set EID = %s where DEPTNAME = %s", (cmdID, deptName))
+            self.conn.commit()
             return True
         except:
             return False
@@ -756,6 +788,7 @@ class DepartmentProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("delete from department where EID = %s", [EID])
+            self.conn.commit()
             return True
         except:
             return False
@@ -776,6 +809,7 @@ class DepartmentProcessor(object):
         try:
             cur = self.conn.cursor()
             cur.execute("delete from department where DEPTNAME = %s", [DEPTNAME])
+            self.conn.commit()
             return True
         except:
             return False
@@ -786,13 +820,58 @@ class Employee_prjProcessor(object):
     def addEID_PrjPair(self, eid, prjName):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT")
-            cur.commit()
+            cur.execute("INSERT INTO EM_PRJ VALUES(%s, %s)", \
+                (eid, prjName)
+            )
+            self.conn.commit()
             return True
         except:
             return False
     # Retrieve
-    
+    def queryJoinPeople(self, prjName):
+        try:
+            cur = self.conn.cursor()
+            cur.execute("SELECT EID FROM EM_PRJ where projectName = %s", [prjName])
+            ans = cur.fetchall()
+            self.conn.commit()
+        except Exception as e:
+            ans = []
+        finally:
+            return ans   
+    def queryEID(self, eid):
+        try:
+            cur = self.conn.cursor()
+            cur.execute("SELECT projectName FROM EM_PRJ where EID = %s", [eid])
+            ans = cur.fetchall()
+            self.conn.commit()
+        except Exception as e:
+            ans = []
+        finally:
+            return ans   
     # Update
-    
+    # No opinions provided, please delete and create. (Pairs provided)
     # Delete
+    def deleteByEID(self, eid):
+        try:
+            cur = self.conn.cursor()
+            cur.execute("delete from em_prj where eid = %s", [eid])
+            self.conn.commit()
+            return True
+        except:
+            return False
+    def deleteByPrjName(self, prjName):
+        try:
+            cur = self.conn.cursor()
+            cur.execute("delete from em_prj where projectName = %s", [prjName])
+            self.conn.commit()
+            return True
+        except:
+            return False
+    def deleteByPair(self, eid, prjName):
+        try:
+            cur = self.conn.cursor()
+            cur.execute("delete from em_prj where eid = %s and projectName = %s", [eid, prjName])
+            self.conn.commit()
+            return True
+        except:
+            return False

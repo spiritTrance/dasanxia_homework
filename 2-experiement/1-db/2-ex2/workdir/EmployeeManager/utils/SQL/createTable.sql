@@ -31,6 +31,7 @@
     create table EM_PRJ(
         EID integer(19) not null,
         PROJECTNAME varchar(1024) not null,
+        unique(EID, PROJECTNAME),
         foreign key(EID) references employee(EID) on delete cascade on update cascade,
         foreign key(PROJECTNAME) references project(PROJECTNAME) on delete cascade on update cascade
     );
@@ -58,6 +59,7 @@
     insert into employee values
         (1, '小明', 'M', 16, '摸鱼', null, null, 'U'),
         (2, '黄日天', 'M', 19, '监督摸鱼', 'manage', 25000.55, 'U');
+        (9, '黄乐天', 'M', 19, '监督摸鱼', 'manage', 25000.55, 'U');
 
     insert into project VALUES
         ('基于深度学习的摸鱼自动化方案研发','develop', '20230501', '20240501'),
@@ -65,4 +67,6 @@
         ('招募摸鱼人才','personnel', '20230301', '20240801');
 
     insert into EM_PRJ VALUES
-        (1, '基于深度学习的摸鱼自动化方案研发');
+        (1, '基于深度学习的摸鱼自动化方案研发'),
+        (2, '招募摸鱼人才'),
+        (9, '基于深度学习的摸鱼自动化方案研发');
