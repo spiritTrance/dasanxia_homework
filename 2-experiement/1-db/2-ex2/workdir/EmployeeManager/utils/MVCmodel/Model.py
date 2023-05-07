@@ -80,7 +80,7 @@ class EmployeeProcessor(object):
         '''
         try:
             cur = self.conn.cursor()
-            cur.execute("update employee set Gender = %s where eid = \%s", (Gender, eid))
+            cur.execute("update employee set Gender = %s where eid = %s", (Gender, eid))
             self.conn.commit()
             return True
         except:
@@ -101,7 +101,7 @@ class EmployeeProcessor(object):
         '''
         try:
             cur = self.conn.cursor()
-            cur.execute("update employee set EName = %s where eid = \%s", (EName, eid))
+            cur.execute("update employee set EName = %s where eid = %s", (EName, eid))
             self.conn.commit()
             return True
         except:
@@ -122,7 +122,7 @@ class EmployeeProcessor(object):
         '''
         try:
             cur = self.conn.cursor()
-            cur.execute("update employee set Age = %s where eid = \%s", (Age, eid))
+            cur.execute("update employee set Age = %s where eid = %s", (Age, eid))
             self.conn.commit()
             return True
         except:
@@ -143,7 +143,7 @@ class EmployeeProcessor(object):
         '''
         try:
             cur = self.conn.cursor()
-            cur.execute("update employee set Job = %s where eid = \%s", (Job, eid))
+            cur.execute("update employee set Job = %s where eid = %s", (Job, eid))
             self.conn.commit()
             return True
         except:
@@ -164,7 +164,7 @@ class EmployeeProcessor(object):
         '''
         try:
             cur = self.conn.cursor()
-            cur.execute("update employee set DeptName = %s where eid = \%s", (DeptName, eid))
+            cur.execute("update employee set DeptName = %s where eid = %s", (DeptName, eid))
             self.conn.commit()
             return True
         except:
@@ -185,7 +185,7 @@ class EmployeeProcessor(object):
         '''
         try:
             cur = self.conn.cursor()
-            cur.execute("update employee set Salary = %s where eid = \%s", (Salary, eid))
+            cur.execute("update employee set Salary = %s where eid = %s", (Salary, eid))
             self.conn.commit()
             return True
         except:
@@ -206,10 +206,11 @@ class EmployeeProcessor(object):
         '''
         try:
             cur = self.conn.cursor()
-            cur.execute("update employee set Ranking = %s where eid = \%s", (Ranking, eid))
+            cur.execute("update employee set Ranking = %s where eid = %s", (Ranking, eid))
             self.conn.commit()
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
     # Update
     def queryIdByName(self, sName:str):
@@ -525,6 +526,24 @@ class ProjectProcessor(object):
             ans = []
         finally:
             return ans
+    def queryInfoByProject(self, sProject):
+        try:
+            cur = self.conn.cursor()
+            cur.execute("SELECT * FROM Project where projectname = %s", [sProject])
+            ans = cur.fetchall()
+        except Exception as e:
+            ans = []
+        finally:
+            return ans
+    def queryAllProjectName(self):
+        try:
+            cur = self.conn.cursor()
+            cur.execute("SELECT projectname FROM Project")
+            ans = cur.fetchall()
+        except Exception as e:
+            ans = []
+        finally:
+            return ans
     # Update
     def updateProjectName(self, newName, projectName):
         '''
@@ -569,7 +588,8 @@ class ProjectProcessor(object):
             cur.execute("update project set Deptname = %s where projectname = %s", (Deptname, projectName))
             self.conn.commit()
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
     def updateStarttime(self, Starttime, projectName):
         '''
@@ -834,7 +854,8 @@ class Employee_prjProcessor(object):
             )
             self.conn.commit()
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
     # Retrieve
     def queryJoinPeople(self, prjName):
