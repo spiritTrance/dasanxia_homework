@@ -146,8 +146,7 @@ struct Analyzer {
     void analysisRelExp(RelExp*, vector<ir::Instruction*>&);
     void analysisEqExp(EqExp*, vector<ir::Instruction*>&);
     void analysisLAndExp(LAndExp*, vector<ir::Instruction*>&);
-
-    void convertPtr2Var(Operand, vector<ir::Instruction *> &);
+    void cumulativeComputing(Operand, Operand, Operator, vector<ir::Instruction*>&);
 
     // reject copy & assignment
     Analyzer(const Analyzer&) = delete;

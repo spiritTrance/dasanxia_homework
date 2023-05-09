@@ -1,8 +1,16 @@
 #include<iostream>
 using namespace std;
-void func(int a[3]){
-    a[1] = 999;
-}
+struct aa
+{
+    int a, b;
+};
+
 int main(){
-    cout << (0x101 + 01100 / 4) - 017 * (019 - 178) << endl;
+    aa a;
+    a.a = 3;
+    a.b = 4;
+    aa b;
+    a.a = 999;
+    b = a;
+    cout << b.a << b.b << endl;
 }
