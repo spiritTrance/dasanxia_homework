@@ -3,8 +3,9 @@
 
 #include<cassert>
 
-using ir::Instruction;
+using frontend::Token;
 using ir::Function;
+using ir::Instruction;
 using ir::Operand;
 using ir::Operator;
 
@@ -29,8 +30,12 @@ typedef unsigned int uint;
 #define TYPE_EQ_FLOATLITERAL(node) (node->t == Type::FloatLiteral)
 #define TYPE_EQ_INT_INTLITEARL(node) (TYPE_EQ_INT(node) || TYPE_EQ_INTLITERAL(node))
 #define TYPE_EQ_FLOAT_FLOATLITEARL(node) (TYPE_EQ_FLOAT(node) || TYPE_EQ_FLOATLITERAL(node))
-
-
+#define V_PARSE_LVAL_PTR "$v_LVal_"
+#define TYPE_EQ_PTR(node) ((node->t == Type::IntPtr) || (node->t == Type::FloatPtr))
+#define PARSE_PTR_VAL(node)               \
+    node->v = V_PARSE_LVAL_PTR + node->v; \
+    assert(TYPE_EQ_PTR(node) && "In Macro: PARSE_PTR_VAL"); \
+    node->t = node->t == Type::IntPtr ? Type::Int : Type::Float;
 map<std::string,ir::Function*>* frontend::get_lib_funcs() {
     static map<std::string,ir::Function*> lib_funcs = {
         {"getint", new Function("getint", Type::Int)},
@@ -160,7 +165,7 @@ ir::Program frontend::Analyzer::get_ir_program(CompUnit* root) {
 
 // CompUnit -> Decl [CompUnit] | FuncDef [CompUnit]                        // 一个计算单元， 要么是函数声明要么是变量声明
 void frontend::Analyzer::analysisCompUnit(CompUnit* root, ir::Program& buffer){
-
+    TODO;
 }
 
 // Decl -> ConstDecl | VarDecl                                             // 变量声明，可以是变量也可以是常量
@@ -257,7 +262,7 @@ void frontend::Analyzer::analysisStmt(Stmt* root, vector<ir::Instruction*>& buff
 
 }
 
-// (computable = False, value, type, arrayIndex): LVal -> Ident {'[' Exp ']'}                             // 左值，可能是单个值也可能是数组
+// (computable = False, value, type, arrayIndex): LVal -> Ident {'[' Exp ']'}                             // 左值，可能是单个值也可能是数组,这个函数恶心在要返回指针可能
 void frontend::Analyzer::analysisLVal(LVal* root, vector<ir::Instruction*>& buffer){
     GET_CHILD_PTR(term, Term, 0);
     Token tk = term->token;
@@ -269,19 +274,19 @@ void frontend::Analyzer::analysisLVal(LVal* root, vector<ir::Instruction*>& buff
     // TODO: 测试样例只有二维数组，那么就不弄复杂了，本来是应该算出来的
     else if (root->children.size() == 4){   // 一维数组
         ANALYSIS(expNode1, Exp, 2);
-        root->v = "$v_LVal";
-        root->t = arrOperand.type == Type::IntPtr ? Type::Int : Type::Float;
-        buffer.push_back(new Instruction(arrOperand, Operand(expNode1->v, expNode1->t), Operand(root->v, root->t), Operator::load));
+        root->v = V_PARSE_LVAL_PTR + root->v;            // 记住哪一步要用这个了，就用$v_LVal变量计算就行
+        root->t = arrOperand.type;
+        buffer.push_back(new Instruction(arrOperand, Operand(expNode1->v, expNode1->t), Operand(root->v, root->t), Operator::getptr));
     }
     else{       // 二维数组
         ANALYSIS(expNode1, Exp, 2);
         ANALYSIS(expNode2, Exp, 5);
-        root->v = "$v_LVal";
-        root->t = arrOperand.type == Type::IntPtr ? Type::Int : Type::Float;
+        root->v = V_PARSE_LVAL_PTR + root->v;            // 记住哪一步要用这个了，就用$v_LVal变量计算就行
+        root->t = arrOperand.type;
         int dim_2 = symbol_table.get_ste(tk.value).dimension[1];
         buffer.push_back(new Instruction(Operand(std::to_string(dim_2), Type::IntLiteral), Operand(expNode1->v, expNode1->t), Operand("$arrOffset", Type::Int), Operator::mul));
         buffer.push_back(new Instruction(Operand("$arrOffset", Type::Int), Operand(expNode2->v, expNode2->t), Operand("$arrOffset", Type::Int), Operator::add));
-        buffer.push_back(new Instruction(arrOperand, Operand("$arrOffset", Type::Int), Operand(root->v, root->t), Operator::load));
+        buffer.push_back(new Instruction(arrOperand, Operand("$arrOffset", Type::Int), Operand(root->v, root->t), Operator::getptr));
     }
 }
 
@@ -382,32 +387,33 @@ void frontend::Analyzer::analysisUnaryExp(UnaryExp* root, vector<ir::Instruction
         COPY_EXP_NODE(primaryExp, root);
     } else if (root->children.size() == 2){     // Line 3
         ANALYSIS(unaryExpNode, UnaryExp, 1);
+        root->t = unaryExpNode->t == Type::IntPtr ? Type::Int : \
+                          unaryExpNode->t == Type::FloatPtr ? Type::Float : unaryExpNode->t;
         COPY_EXP_NODE(unaryExpNode, root);
-        GET_CHILD_PTR(term, Term, 0);
-        Token tk = term->token;
-        switch (tk.value[0])
-        {
-        case '+':
-            break;
-        case '-':
-            if (root->t == Type::Int){
-                buffer.push_back(new Instruction(Operand("0", Type::IntLiteral), Operand(), Operand("$tem0", Type::Int), Operator::def));
-                buffer.push_back(new Instruction(Operand("$tem0", Type::Int), Operand(root->v, root->t), Operand(root->v, root->t), Operator::sub));
-            } else if (root->t == Type::Float || root->t == Type::FloatLiteral){
-                buffer.push_back(new Instruction(Operand("0.0", Type::FloatLiteral), Operand(), Operand("$ftem0", Type::Float), Operator::fdef));
-                buffer.push_back(new Instruction(Operand("$ftem0", Type::Float), Operand(root->v, root->t), Operand(root->v, root->t), Operator::fsub));
-            } else if (root->t == Type::IntLiteral){
-                buffer.push_back(new Instruction(Operand("0", Type::IntLiteral), Operand(), Operand("$tem0", Type::Int), Operator::def));
-                buffer.push_back(new Instruction(Operand("$tem0", Type::Int), Operand(root->v, root->t), Operand(root->v, root->t), Operator::subi));
-            } else{
-                assert(0 && "In analysisUnaryExp: Unexpected Type");
-            }
-            break;
-        case '!':
-            buffer.push_back(new Instruction(Operand(root->v, root->t), Operand(), Operand(root->v, root->t), Operator::_not));
-            break;
-        default:
-            break;
+        GET_CHILD_PTR(unaryOpNode, UnaryOp, 0);
+        Token tk = analysisUnaryOp(unaryOpNode, buffer);
+        switch (tk.type){
+            case TokenType::PLUS:
+                break;
+            case TokenType::MINU:
+                if (root->t == Type::Int){
+                    buffer.push_back(new Instruction(Operand("0", Type::IntLiteral), Operand(), Operand("$tem0", Type::Int), Operator::def));
+                    buffer.push_back(new Instruction(Operand("$tem0", Type::Int), Operand(root->v, root->t), Operand(root->v, root->t), Operator::sub));
+                } else if (root->t == Type::Float || root->t == Type::FloatLiteral){
+                    buffer.push_back(new Instruction(Operand("0.0", Type::FloatLiteral), Operand(), Operand("$ftem0", Type::Float), Operator::fdef));
+                    buffer.push_back(new Instruction(Operand("$ftem0", Type::Float), Operand(root->v, root->t), Operand(root->v, root->t), Operator::fsub));
+                } else if (root->t == Type::IntLiteral){
+                    buffer.push_back(new Instruction(Operand("0", Type::IntLiteral), Operand(), Operand("$tem0", Type::Int), Operator::def));
+                    buffer.push_back(new Instruction(Operand("$tem0", Type::Int), Operand(root->v, root->t), Operand(root->v, root->t), Operator::subi));
+                } else{
+                    assert(0 && "In analysisUnaryExp: Unexpected Type");
+                }
+                break;
+            case TokenType::NOT:
+                buffer.push_back(new Instruction(Operand(root->v, root->t), Operand(), Operand(root->v, root->t), Operator::_not));
+                break;
+            default:
+                break;
         }
     } else {    // Line 2
         GET_CHILD_PTR(term, Term, 0);
@@ -417,17 +423,20 @@ void frontend::Analyzer::analysisUnaryExp(UnaryExp* root, vector<ir::Instruction
             ANALYSIS(funcParamsNode, FuncRParams, 3);
             TODO;
         }
+        // Instruction callInst = ir::CallInst(函数返回值, 形参列表, Operand());
+        // buffer.push_back(&callInst);
     }
 }
 
 // (TokenType op): UnaryOp -> '+' | '-' | '!'
-void frontend::Analyzer::analysisUnaryOp(UnaryOp* root, vector<ir::Instruction*>& buffer){
-
+Token frontend::Analyzer::analysisUnaryOp(UnaryOp* root, vector<ir::Instruction*>& buffer){
+    GET_CHILD_PTR(son, Term, 0);
+    return son->token;
 }
 
 // FuncRParams -> Exp { ',' Exp }                          // 调用函数时的参数
-void frontend::Analyzer::analysisFuncRParams(FuncRParams* root, vector<ir::Instruction*>& buffer){
-    
+vector<Operand> frontend::Analyzer::analysisFuncRParams(FuncRParams* root, vector<ir::Instruction*>& buffer){
+
 }
 
 // (computable = False, value, type): MulExp -> UnaryExp { ('*' | '/' | '%') UnaryExp }                     

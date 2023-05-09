@@ -140,12 +140,14 @@ struct Analyzer {
     void analysisNumber(Number*, vector<ir::Instruction*>&);
     void analysisPrimaryExp(PrimaryExp*, vector<ir::Instruction*>&);
     void analysisUnaryExp(UnaryExp*, vector<ir::Instruction*>&);
-    void analysisUnaryOp(UnaryOp*, vector<ir::Instruction*>&);
-    void analysisFuncRParams(FuncRParams*, vector<ir::Instruction*>&);
+    Token analysisUnaryOp(UnaryOp*, vector<ir::Instruction*>&);
+    vector<Operand> analysisFuncRParams(FuncRParams*, vector<ir::Instruction*>&);
     void analysisMulExp(MulExp*, vector<ir::Instruction*>&);
     void analysisRelExp(RelExp*, vector<ir::Instruction*>&);
     void analysisEqExp(EqExp*, vector<ir::Instruction*>&);
     void analysisLAndExp(LAndExp*, vector<ir::Instruction*>&);
+
+    void convertPtr2Var(Operand, vector<ir::Instruction *> &);
 
     // reject copy & assignment
     Analyzer(const Analyzer&) = delete;
