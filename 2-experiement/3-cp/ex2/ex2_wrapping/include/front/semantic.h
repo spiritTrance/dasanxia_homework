@@ -35,9 +35,9 @@ struct STE {
 using map_str_ste = map<string, STE>;
 // definition of scope infomation
 struct ScopeInfo {
-    int cnt;
-    string name;
-    map_str_ste table;
+    int cnt;    // 作用域在函数中的唯一编号, 代表是函数中出现的第几个作用域
+    string name;    // 分辨作用域的类别, 'b' 代表是一个单独嵌套的作用域, 'i' 'e' 'w' 分别代表由 if else while 产生的新作用域
+    map_str_ste table;      //string 是操作数的【原始】名称, 在 STE 中存放的应该是【变量重命名】后的名称
 };
 
 // surpport lib functions
@@ -50,9 +50,18 @@ struct SymbolTable{
 
     /**
      * @brief enter a new scope, record the infomation in scope stacks
-     * @param node: a Block node, entering a new Block means a new name scope
+     * @param s: entering a new Scope means a new name scope
      */
-    void add_scope(Block*);
+    void add_scope(std::string);
+
+    /**
+     * @brief add a new entry at the last scope
+     * @param ste: a ste entry
+     */
+    void add_scope_entry(STE);
+    void add_scope_entry(Operand, std::vector<int>);
+    void add_scope_entry(Type, std::string, std::vector<int>);
+    
 
     /**
      * @brief exit a scope, pop out infomations
@@ -80,6 +89,9 @@ struct SymbolTable{
      * @return Operand 
      */
     ir::Operand get_operand(string id) const;
+    ir::Type get_operand_type(string id) const;
+    std::string get_operand_name(string id) const;
+    // unsigned int get_array_offset(std::string, vector<int>) const;
 
     /**
      * @brief get the right ste with the input name
@@ -103,37 +115,37 @@ struct Analyzer {
 
     // analysis functions
     ir::Program get_ir_program(CompUnit*);
-    void analysisCompUnit(CompUnit* node, ir::Program& buffer);
-    void analysisDecl(Decl* node, ir::Program& buffer);
-    void analysisFuncDef(FuncDef* node, ir::Program& buffer);
-    void analysisConstDecl(ConstDecl* node, ir::Program& buffer);
-    void analysisVarDecl(VarDecl* node, ir::Program& buffer);
-    void analysisBType(BType* node, ir::Program& buffer);
-    void analysisConstDef(ConstDef* node, ir::Program& buffer);
-    void analysisConstInitVal(ConstInitVal* node, ir::Program& buffer);
-    void analysisConstExp(ConstExp* node, ir::Program& buffer);
-    void analysisVarDef(VarDef* node, ir::Program& buffer);
-    void analysisInitVal(InitVal* node, ir::Program& buffer);
-    void analysisExp(Exp* node, ir::Program& buffer);
-    void analysisFuncType(FuncType* node, ir::Program& buffer);
-    void analysisFuncFParam(FuncFParam* node, ir::Program& buffer);
-    void analysisFuncFParams(FuncFParams* node, ir::Program& buffer);
-    void analysisBlock(Block* node, ir::Program& buffer);
-    void analysisBlockItem(BlockItem* node, ir::Program& buffer);
-    void analysisStmt(Stmt* node, ir::Program& buffer);
-    void analysisLVal(LVal* node, ir::Program& buffer);
-    void analysisAddExp(AddExp* node, ir::Program& buffer);
-    void analysisCond(Cond* node, ir::Program& buffer);
-    void analysisLOrExp(LOrExp* node, ir::Program& buffer);
-    void analysisNumber(Number* node, ir::Program& buffer);
-    void analysisPrimaryExp(PrimaryExp* node, ir::Program& buffer);
-    void analysisUnaryExp(UnaryExp* node, ir::Program& buffer);
-    void analysisUnaryOp(UnaryOp* node, ir::Program& buffer);
-    void analysisFuncRParams(FuncRParams* node, ir::Program& buffer);
-    void analysisMulExp(MulExp* node, ir::Program& buffer);
-    void analysisRelExp(RelExp* node, ir::Program& buffer);
-    void analysisEqExp(EqExp* node, ir::Program& buffer);
-    void analysisLAndExp(LAndExp* node, ir::Program& buffer);
+    void analysisCompUnit(CompUnit*, ir::Program&);
+    void analysisDecl(Decl*, vector<ir::Instruction*>&);
+    void analysisFuncDef(FuncDef*, ir::Function&);
+    void analysisConstDecl(ConstDecl*, vector<ir::Instruction*>&);
+    void analysisVarDecl(VarDecl*, vector<ir::Instruction*>&);
+    void analysisBType(BType*, vector<ir::Instruction*>&);
+    void analysisConstDef(ConstDef*, vector<ir::Instruction*>&);
+    void analysisConstInitVal(ConstInitVal*, vector<ir::Instruction*>&);
+    void analysisConstExp(ConstExp*, vector<ir::Instruction*>&);
+    void analysisVarDef(VarDef*, vector<ir::Instruction*>&);
+    void analysisInitVal(InitVal*, vector<ir::Instruction*>&);
+    void analysisExp(Exp*, vector<ir::Instruction*>&);
+    void analysisFuncType(FuncType*, vector<ir::Instruction*>&);
+    void analysisFuncFParam(FuncFParam*, vector<ir::Instruction*>&);
+    void analysisFuncFParams(FuncFParams*, vector<ir::Instruction*>&);
+    void analysisBlock(Block*, vector<ir::Instruction*>&);
+    void analysisBlockItem(BlockItem*, vector<ir::Instruction*>&);
+    void analysisStmt(Stmt*, vector<ir::Instruction*>&);
+    void analysisLVal(LVal*, vector<ir::Instruction*>&);
+    void analysisAddExp(AddExp*, vector<ir::Instruction*>&);
+    void analysisCond(Cond*, vector<ir::Instruction*>&);
+    void analysisLOrExp(LOrExp*, vector<ir::Instruction*>&);
+    void analysisNumber(Number*, vector<ir::Instruction*>&);
+    void analysisPrimaryExp(PrimaryExp*, vector<ir::Instruction*>&);
+    void analysisUnaryExp(UnaryExp*, vector<ir::Instruction*>&);
+    void analysisUnaryOp(UnaryOp*, vector<ir::Instruction*>&);
+    void analysisFuncRParams(FuncRParams*, vector<ir::Instruction*>&);
+    void analysisMulExp(MulExp*, vector<ir::Instruction*>&);
+    void analysisRelExp(RelExp*, vector<ir::Instruction*>&);
+    void analysisEqExp(EqExp*, vector<ir::Instruction*>&);
+    void analysisLAndExp(LAndExp*, vector<ir::Instruction*>&);
 
     // reject copy & assignment
     Analyzer(const Analyzer&) = delete;

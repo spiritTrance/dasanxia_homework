@@ -320,6 +320,9 @@ struct Parser {
      * @return the root of abstract syntax tree
      */
     AstNode* get_abstract_syntax_tree() {
+        for (auto v : token_stream){
+            std::cout << toString(v.type) << ' ' << v.value << std::endl;
+        }
         Token tk = token_stream[0];
         std::string s = tk.value;
         AstNode *ret = new AstNode();
