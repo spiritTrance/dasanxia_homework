@@ -229,16 +229,39 @@ void frontend::Analyzer::analysisDecl(Decl* root, vector<ir::Instruction*>& buff
 
 // (sName, retType): FuncDef -> FuncType Ident '(' [FuncFParams] ')' Block   // 函数定义：void ident(int params, ...) block
 void frontend::Analyzer::analysisFuncDef(FuncDef* root, ir::Function& buffer){
-
+    GET_CHILD_PTR(funcType, FuncType, 0);
+    Token retTypeTk = analysisFuncType(funcType);
+    GET_CHILD_PTR(ident, Term, 0);
+    // 返回参数
+    buffer.returnType = retTypeTk.type == TokenType::VOIDTK ? Type::null :
+                        retTypeTk.type == TokenType::INTTK ? Type::Int : Type::Float;
+    // 函数名
+    buffer.name = ident->token.value;
+    // 添加形参列表
+    if (root->children.size() == 6){        // have FuncFParams, getParamList
+        GET_CHILD_PTR(funcFParams, FuncFParams, 3);
+        buffer.ParameterList = analysisFuncFParams(funcFParams);
+    }
+    // 注意Block要添加了
+    symbol_table.add_scope(ident->token.value);
+    ir::Function &func = buffer;
+    //  利用作用域解决buffer的宏定义问题
+    {
+        vector<ir::Instruction *> buffer;
+        int childNum = root->children.size();
+        ANALYSIS(block, Block, childNum - 1);
+        func.InstVec = buffer;
+    }
+    symbol_table.exit_scope();
 }
 
 // (type): ConstDecl -> 'const' BType ConstDef { ',' ConstDef } ';'                // 如果是常量，有const关键字
 void frontend::Analyzer::analysisConstDecl(ConstDecl* root, vector<ir::Instruction*>& buffer){
     GET_CHILD_PTR(btype, BType, 1);
-    Token tk = analysisBType(btype, buffer);
+    Token tk = analysisBType(btype);
     root->t = tk.type == TokenType::INTTK ? Type::Int : Type::Float;
     ANALYSIS(constDef, ConstDef, 2);
-    int index = 4;
+    size_t index = 4;
     while (index <= root->children.size() - 1)
     {
         ANALYSIS(constDef, ConstDef, index);
@@ -249,10 +272,10 @@ void frontend::Analyzer::analysisConstDecl(ConstDecl* root, vector<ir::Instructi
 // (type): VarDecl -> BType VarDef { ',' VarDef } ';'                              // 变量定义，int a = ?, b[1][2][3] = {};
 void frontend::Analyzer::analysisVarDecl(VarDecl* root, vector<ir::Instruction*>& buffer){
     GET_CHILD_PTR(btype, BType, 0);
-    Token tk = analysisBType(btype, buffer);
+    Token tk = analysisBType(btype);
     root->t = tk.type == TokenType::INTTK ? Type::Int : Type::Float;
     ANALYSIS(varDef, VarDef, 2);
-    int index = 3;
+    size_t index = 3;
     while (index <= root->children.size() - 1)
     {
         ANALYSIS(varDef, VarDef, index);
@@ -261,7 +284,7 @@ void frontend::Analyzer::analysisVarDecl(VarDecl* root, vector<ir::Instruction*>
 }
 
 // (type): BType -> 'int' | 'float'                                                // BType 是 变量可以有的类型
-Token frontend::Analyzer::analysisBType(BType* root, vector<ir::Instruction*>& buffer){
+Token frontend::Analyzer::analysisBType(BType* root){
     GET_CHILD_PTR(term, Term, 0);
     return term->token;
 }
@@ -364,7 +387,7 @@ void frontend::Analyzer::analysisConstInitVal(ConstInitVal* root, vector<ir::Ins
         Type tp = arrSte.operand.type;
         std::string arrScopedName = arrSte.operand.name;
         if (tp == Type::IntPtr || tp == Type::FloatPtr){        // 数组赋值，根据SysY文档，不可能出现{{1,2},{3,4}}的情况
-            vector<int> &dim = symbol_table.get_ste(arrName).dimension;
+            vector<int> dim = symbol_table.get_ste(arrName).dimension;
             int sz = 1;
             for (int i: dim){
                 sz *= i;
@@ -523,7 +546,7 @@ void frontend::Analyzer::analysisInitVal(InitVal* root, vector<ir::Instruction*>
         Type tp = arrSte.operand.type;
         std::string arrScopedName = arrSte.operand.name;
         if (tp == Type::IntPtr || tp == Type::FloatPtr){        // 数组赋值，根据SysY文档，不可能出现{{1,2},{3,4}}的情况
-            vector<int> &dim = symbol_table.get_ste(arrName).dimension;
+            vector<int> dim = symbol_table.get_ste(arrName).dimension;
             int sz = 1;
             for (int i: dim){
                 sz *= i;
@@ -559,29 +582,50 @@ void frontend::Analyzer::analysisExp(Exp* root, vector<ir::Instruction*>& buffer
 }
 
 // FuncType -> 'void' | 'int' | 'float'
-Token frontend::Analyzer::analysisFuncType(FuncType* root, vector<ir::Instruction*>& buffer){
+Token frontend::Analyzer::analysisFuncType(FuncType* root){
     GET_CHILD_PTR(term, Term, 0);
     return term->token;
 }
 
 // FuncFParam -> BType Ident ['[' ']' { '[' Exp ']' }]
-void frontend::Analyzer::analysisFuncFParam(FuncFParam* root, vector<ir::Instruction*>& buffer){
-
+Operand frontend::Analyzer::analysisFuncFParam(FuncFParam* root){
+    GET_CHILD_PTR(btype, BType, 0);
+    Token tk_type = analysisBType(btype);
+    GET_CHILD_PTR(ident, Term, 1);
+    Token tk_ident = ident->token;      // 应该是int, intPtr, float, floatPtr中的一个
+    Type opType = root->children.size() == 2 ? (tk_type.type == TokenType::INTTK) ? Type::Int : Type::Float : 
+                                               (tk_type.type == TokenType::INTTK) ? Type::IntPtr : Type::FloatPtr;
+    Operand ret(tk_ident.value, opType);
+    return ret;
 }
 
 // FuncFParams -> FuncFParam { ',' FuncFParam }            // 逗号表示重复
-void frontend::Analyzer::analysisFuncFParams(FuncFParams* root, vector<ir::Instruction*>& buffer){
-
+vector<Operand> frontend::Analyzer::analysisFuncFParams(FuncFParams* root){
+    vector<Operand> ans;
+    for (int i = 0; i < root->children.size(); i += 2){
+        FuncFParam *son = dynamic_cast<FuncFParam*>(root->children[i]);
+        Operand op = analysisFuncFParam(son);
+        ans.push_back(op);
+    }
+    return ans;
 }
 
 // Block -> '{' { BlockItem } '}'                          // block由多个item构成，每个item以分号结尾，用大括号分隔表示block
 void frontend::Analyzer::analysisBlock(Block* root, vector<ir::Instruction*>& buffer){
-
+    for (int i = 1; i < root->children.size() - 1; i++){
+        ANALYSIS(blockItem, BlockItem, i);
+    }
 }
 
 // BlockItem -> Stmt | Decl                                // 每个Item由Statement或者声明构成
 void frontend::Analyzer::analysisBlockItem(BlockItem* root, vector<ir::Instruction*>& buffer){
-
+    GET_CHILD_PTR(son, AstNode, 0);
+    if (son->type == NodeType::STMT){
+        ANALYSIS(stmt, Stmt, 0);
+    }
+    else{
+        ANALYSIS(decl, Decl, 0);
+    }
 }
 
 // ????(jump_eow, jump_bow):   Stmt -> LVal '=' Exp ';'                                // 对一个已有变量的赋值

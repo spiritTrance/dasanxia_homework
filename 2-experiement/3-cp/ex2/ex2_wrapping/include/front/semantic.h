@@ -58,9 +58,9 @@ struct SymbolTable{
      * @brief add a new entry at the last scope
      * @param ste: a ste entry
      */
-    void add_scope_entry(STE, bool);
-    void add_scope_entry(Operand, std::vector<int>, bool);
-    void add_scope_entry(Type, std::string, std::vector<int>, bool);
+    void add_scope_entry(frontend::STE, bool);
+    void add_scope_entry(ir::Operand, std::vector<int>, bool);
+    void add_scope_entry(ir::Type, std::string, std::vector<int>, bool);
     
 
     /**
@@ -120,16 +120,16 @@ struct Analyzer {
     void analysisFuncDef(FuncDef*, ir::Function&);
     void analysisConstDecl(ConstDecl*, vector<ir::Instruction*>&);
     void analysisVarDecl(VarDecl*, vector<ir::Instruction*>&);
-    Token analysisBType(BType*, vector<ir::Instruction*>&);
+    frontend::Token analysisBType(BType*);
     void analysisConstDef(ConstDef*, vector<ir::Instruction*>&);
     void analysisConstInitVal(ConstInitVal*, vector<ir::Instruction*>&);
     void analysisConstExp(ConstExp*, vector<ir::Instruction*>&);
     void analysisVarDef(VarDef*, vector<ir::Instruction*>&);
     void analysisInitVal(InitVal*, vector<ir::Instruction*>&);
     void analysisExp(Exp*, vector<ir::Instruction*>&);
-    Token analysisFuncType(FuncType*, vector<ir::Instruction*>&);
-    void analysisFuncFParam(FuncFParam*, vector<ir::Instruction*>&);
-    void analysisFuncFParams(FuncFParams*, vector<ir::Instruction*>&);
+    frontend::Token analysisFuncType(FuncType*);
+    ir::Operand analysisFuncFParam(FuncFParam*);
+    std::vector<ir::Operand> analysisFuncFParams(FuncFParams*);
     void analysisBlock(Block*, vector<ir::Instruction*>&);
     void analysisBlockItem(BlockItem*, vector<ir::Instruction*>&);
     void analysisStmt(Stmt*, vector<ir::Instruction*>&);
@@ -140,14 +140,14 @@ struct Analyzer {
     void analysisNumber(Number*, vector<ir::Instruction*>&);
     void analysisPrimaryExp(PrimaryExp*, vector<ir::Instruction*>&);
     void analysisUnaryExp(UnaryExp*, vector<ir::Instruction*>&);
-    Token analysisUnaryOp(UnaryOp*, vector<ir::Instruction*>&);
-    vector<Operand> analysisFuncRParams(FuncRParams*, vector<ir::Instruction*>&);
+    frontend::Token analysisUnaryOp(UnaryOp*, vector<ir::Instruction*>&);
+    std::vector<ir::Operand> analysisFuncRParams(FuncRParams*, vector<ir::Instruction*>&);
     void analysisMulExp(MulExp*, vector<ir::Instruction*>&);
     void analysisRelExp(RelExp*, vector<ir::Instruction*>&);
     void analysisEqExp(EqExp*, vector<ir::Instruction*>&);
     void analysisLAndExp(LAndExp*, vector<ir::Instruction*>&);
-    void cumulativeComputing(Operand, Operand, Operator, vector<ir::Instruction*>&);
-    Operand castExpectedType(Operand, Type, vector<ir::Instruction*>&);
+    void cumulativeComputing(ir::Operand, ir::Operand, ir::Operator, vector<ir::Instruction*>&);
+    ir::Operand castExpectedType(ir::Operand, ir::Type, vector<ir::Instruction*>&);
     // reject copy & assignment
     Analyzer(const Analyzer&) = delete;
     Analyzer& operator=(const Analyzer&) = delete;
