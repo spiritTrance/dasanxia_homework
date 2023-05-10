@@ -58,9 +58,9 @@ struct SymbolTable{
      * @brief add a new entry at the last scope
      * @param ste: a ste entry
      */
-    void add_scope_entry(STE);
-    void add_scope_entry(Operand, std::vector<int>);
-    void add_scope_entry(Type, std::string, std::vector<int>);
+    void add_scope_entry(STE, bool);
+    void add_scope_entry(Operand, std::vector<int>, bool);
+    void add_scope_entry(Type, std::string, std::vector<int>, bool);
     
 
     /**
@@ -88,9 +88,9 @@ struct SymbolTable{
      * @param id identifier name
      * @return Operand 
      */
-    ir::Operand get_operand(string id) const;
-    ir::Type get_operand_type(string id) const;
-    std::string get_operand_name(string id) const;
+    ir::Operand get_operand(string id, bool) const;
+    ir::Type get_operand_type(string id, bool) const;
+    std::string get_operand_name(string id, bool) const;
     // unsigned int get_array_offset(std::string, vector<int>) const;
 
     /**
@@ -98,7 +98,7 @@ struct SymbolTable{
      * @param id identifier name
      * @return STE 
      */
-    STE get_ste(string id) const;
+    STE get_ste(string id, bool) const;
 };
 
 
@@ -120,14 +120,14 @@ struct Analyzer {
     void analysisFuncDef(FuncDef*, ir::Function&);
     void analysisConstDecl(ConstDecl*, vector<ir::Instruction*>&);
     void analysisVarDecl(VarDecl*, vector<ir::Instruction*>&);
-    void analysisBType(BType*, vector<ir::Instruction*>&);
+    Token analysisBType(BType*, vector<ir::Instruction*>&);
     void analysisConstDef(ConstDef*, vector<ir::Instruction*>&);
     void analysisConstInitVal(ConstInitVal*, vector<ir::Instruction*>&);
     void analysisConstExp(ConstExp*, vector<ir::Instruction*>&);
     void analysisVarDef(VarDef*, vector<ir::Instruction*>&);
     void analysisInitVal(InitVal*, vector<ir::Instruction*>&);
     void analysisExp(Exp*, vector<ir::Instruction*>&);
-    void analysisFuncType(FuncType*, vector<ir::Instruction*>&);
+    Token analysisFuncType(FuncType*, vector<ir::Instruction*>&);
     void analysisFuncFParam(FuncFParam*, vector<ir::Instruction*>&);
     void analysisFuncFParams(FuncFParams*, vector<ir::Instruction*>&);
     void analysisBlock(Block*, vector<ir::Instruction*>&);
@@ -147,7 +147,7 @@ struct Analyzer {
     void analysisEqExp(EqExp*, vector<ir::Instruction*>&);
     void analysisLAndExp(LAndExp*, vector<ir::Instruction*>&);
     void cumulativeComputing(Operand, Operand, Operator, vector<ir::Instruction*>&);
-
+    Operand castExpectedType(Operand, Type, vector<ir::Instruction*>&);
     // reject copy & assignment
     Analyzer(const Analyzer&) = delete;
     Analyzer& operator=(const Analyzer&) = delete;

@@ -39,7 +39,7 @@ typedef unsigned int uint;
 #define TYPE_EQ_VAR(node) (TYPE_EQ(node, Type::Float) || TYPE_EQ(node, Type::Int))
 // 其他乱七八糟的
 #define OPERAND_NODE(node) (Operand(node->v, node->t))
-
+#define NODEPTR_CAST(type) dynamic_cast<type*>
 map<std::string,ir::Function*>* frontend::get_lib_funcs() {
     static map<std::string,ir::Function*> lib_funcs = {
         {"getint", new Function("getint", Type::Int)},
@@ -71,23 +71,29 @@ void frontend::SymbolTable::add_scope(std::string scopeName) {
     scope_stack.push_back(newInfo);
 }
 
-void frontend::SymbolTable::add_scope_entry(STE ste){
+void frontend::SymbolTable::add_scope_entry(STE ste, bool isFunc = false){
+    // 注意现在STE存的值没有重命名，如果是其他标识符，则会全部进行重命名
+    if (isFunc){
+        std::string scopeName = ste.operand.name;
+        scope_stack[0].table[scopeName] = ste;
+        return;
+    }
     std::string scopeName = get_scoped_name(ste.operand.name);
     int index = scope_stack.size() - 1;
-    std::swap(scopeName, ste.operand.name);
+    std::swap(scopeName, ste.operand.name);     // 重命名交换到STE里面去，未重命名的作为key
     scope_stack[index].table[scopeName] = ste;      // 注意scopeName是原始名字，输入的ste的name本来是原始名字，要交换
 }
 
-void frontend::SymbolTable::add_scope_entry(Operand operand, vector<int> dim){
+void frontend::SymbolTable::add_scope_entry(Operand operand, vector<int> dim, bool isFunc = false){
     STE ste;
     ste.dimension = dim;
     ste.operand = operand;
-    add_scope_entry(ste);
+    add_scope_entry(ste, isFunc);
 }
 
-void frontend::SymbolTable::add_scope_entry(Type type, std::string name, vector<int> dim){
+void frontend::SymbolTable::add_scope_entry(Type type, std::string name, vector<int> dim, bool isFunc = false){
     Operand operand(name, type);
-    add_scope_entry(operand, dim);
+    add_scope_entry(operand, dim, isFunc);
 }
 
 void frontend::SymbolTable::exit_scope() {
@@ -103,19 +109,19 @@ string frontend::SymbolTable::get_scoped_name(string id) const {
 
 //输入一个变量名, 在符号表中寻找最近的同名变量, 返回对应的 Operand
 // (注意，此 Operand 的 name 是重命名后的)
-Operand frontend::SymbolTable::get_operand(string id) const {
-    STE ste = frontend::SymbolTable::get_ste(id);
+Operand frontend::SymbolTable::get_operand(string id, bool isFunc = false) const {
+    STE ste = frontend::SymbolTable::get_ste(id, isFunc);
     return ste.operand;
 }
 
 // 注意这个返回的name是重命名后的
-std::string frontend::SymbolTable::get_operand_name(string id) const {
-    STE ste = frontend::SymbolTable::get_ste(id);
+std::string frontend::SymbolTable::get_operand_name(string id, bool isFunc = false) const {
+    STE ste = frontend::SymbolTable::get_ste(id, isFunc);
     return ste.operand.name;
 }
 
-Type frontend::SymbolTable::get_operand_type(string id) const {
-    STE ste = frontend::SymbolTable::get_ste(id);
+Type frontend::SymbolTable::get_operand_type(string id, bool isFunc = false) const {
+    STE ste = frontend::SymbolTable::get_ste(id, isFunc);
     return ste.operand.type;
 }
 
@@ -144,7 +150,12 @@ Type frontend::SymbolTable::get_operand_type(string id) const {
 // }
 
 //输入一个变量名, 在符号表中寻找最近的同名变量, 返回 STE
-frontend::STE frontend::SymbolTable::get_ste(string id) const {
+frontend::STE frontend::SymbolTable::get_ste(string id, bool isFunc = false) const {
+    if (isFunc){        // 查找的是函数名
+        auto it = scope_stack[0].table.find(id);
+        assert(it != scope_stack[0].table.end() && "In frontend::SymbolTable::get_ste: Invalid FuncName!");
+        return it->second;
+    }
     for (int i = this->scope_stack.size() - 1; i >= 0 ; i--){
         auto it = scope_stack[i].table.find(id);
         if (it != scope_stack[i].table.end()){
@@ -162,14 +173,49 @@ frontend::Analyzer::Analyzer(): tmp_cnt(0), symbol_table() {
 ir::Program frontend::Analyzer::get_ir_program(CompUnit* root) {
     TODO;
     ir::Program prog;
+    // 加入函数的scope和全局变量的Scope
+    symbol_table.add_scope("__$FuncScope");
+    symbol_table.add_scope("__$GlobalScope");
     analysisCompUnit(root, prog);
+    // 加全局变量
+    ScopeInfo& globalValInfo = symbol_table.scope_stack[1];
+    for (auto it: globalValInfo.table){
+        const Operand operand = it.second.operand;
+        vector<int>& dim = it.second.dimension;
+        int maxLen = 1;
+        for (int i: dim){
+            maxLen *= i;
+        }
+        if (dim.empty()){
+            ir::GlobalVal globalVal(operand);
+            prog.globalVal.push_back(globalVal);
+        }
+        else{
+            ir::GlobalVal globalVal(operand, maxLen);
+            prog.globalVal.push_back(globalVal);
+        }
+    }
     return prog;
 }
 
 
 // CompUnit -> Decl [CompUnit] | FuncDef [CompUnit]                        // 一个计算单元， 要么是函数声明要么是变量声明
 void frontend::Analyzer::analysisCompUnit(CompUnit* root, ir::Program& buffer){
-    TODO;
+    ir::Program &prog = buffer;
+    GET_CHILD_PTR(son, AstNode, 0);
+    if (son->type == NodeType::DECL){           // 可能是定义变量
+        // 注意这里Local有个buffer，就很头疼，怎么区分啊
+        vector<ir::Instruction *> buffer;
+        ANALYSIS(decl, Decl, 0);
+    }
+    else{               // 函数定义
+        ir::Function buffer;
+        ANALYSIS(decl, FuncDef, 0);
+        prog.addFunction(buffer);       // prog加函数
+    }
+    if (root->children.size()!=1){
+        ANALYSIS(son2, CompUnit, 1);
+    }
 }
 
 // Decl -> ConstDecl | VarDecl                                             // 变量声明，可以是变量也可以是常量
@@ -188,27 +234,165 @@ void frontend::Analyzer::analysisFuncDef(FuncDef* root, ir::Function& buffer){
 
 // (type): ConstDecl -> 'const' BType ConstDef { ',' ConstDef } ';'                // 如果是常量，有const关键字
 void frontend::Analyzer::analysisConstDecl(ConstDecl* root, vector<ir::Instruction*>& buffer){
-    
+    GET_CHILD_PTR(btype, BType, 1);
+    Token tk = analysisBType(btype, buffer);
+    root->t = tk.type == TokenType::INTTK ? Type::Int : Type::Float;
+    ANALYSIS(constDef, ConstDef, 2);
+    int index = 4;
+    while (index <= root->children.size() - 1)
+    {
+        ANALYSIS(constDef, ConstDef, index);
+        index += 2;
+    }
 }
 
 // (type): VarDecl -> BType VarDef { ',' VarDef } ';'                              // 变量定义，int a = ?, b[1][2][3] = {};
 void frontend::Analyzer::analysisVarDecl(VarDecl* root, vector<ir::Instruction*>& buffer){
-
+    GET_CHILD_PTR(btype, BType, 0);
+    Token tk = analysisBType(btype, buffer);
+    root->t = tk.type == TokenType::INTTK ? Type::Int : Type::Float;
+    ANALYSIS(varDef, VarDef, 2);
+    int index = 3;
+    while (index <= root->children.size() - 1)
+    {
+        ANALYSIS(varDef, VarDef, index);
+        index += 2;
+    }
 }
 
 // (type): BType -> 'int' | 'float'                                                // BType 是 变量可以有的类型
-void frontend::Analyzer::analysisBType(BType* root, vector<ir::Instruction*>& buffer){
-
+Token frontend::Analyzer::analysisBType(BType* root, vector<ir::Instruction*>& buffer){
+    GET_CHILD_PTR(term, Term, 0);
+    return term->token;
 }
 
 // (arrName): ConstDef -> Ident { '[' ConstExp ']' } '=' ConstInitVal                 // 常量表达式核心定义，从Ident = Val或Ident[][] = Val
 void frontend::Analyzer::analysisConstDef(ConstDef* root, vector<ir::Instruction*>& buffer){
+    Type tp = dynamic_cast<ConstDecl*>(root->parent)->t;
+    assert((tp == Type::Int || tp == Type::Float) && "Invalid type in frontend::Analyzer::analysisConstDef");
+    GET_CHILD_PTR(ident, Term, 0);
+    std::string sVarName = ident->token.value;
+    root->arr_name = sVarName;      // 存的是原来的值，只是翻译的时候要重命名
+    /* 这里要做一下思考：
+     * 如果是Int/Float，需要def/fdef;
+     * 如果是Ptr，则需要求出dimension并alloc;
+     * 那么，我们的策略是：
+     * 在ConstDef结点，执行def/fdef和alloc，那么：
+     * 对于Int/Float，行为是让ConstInitVal把值给传上来，赋值，因此赋值在COnstDef中
+     * 但对于数组呢？会使用Initializer{}来赋值，显然不能通过节点type来赋值
+     * 那么我们的策略是在ConstInitVal赋值
+     * 问题来了，ConstInitVal里面怎么做？注意其父节点类型仍然可能是自己。
+     * ================================
+     * 对于ConstInitVal节点的操作：
+     * 查看父节点的类型，如果是ConstDef：
+     *                  查看ArrName种类，如果是Int，则直接通过属性传值（注意仍然可能是六种情况）
+     *                                  如果是ptr，那么获取dimension，开始store进行赋值（如何求下标赋值是个值得注意的问题）
+     *                  其他情况，直接通过属性传值即可（仍然注意六种情况）
+     *      - def/fdef
+     *      - 求dim并赋值
+     *      - 维护符号表
+     */
 
+    if (root->children.size() == 3){            // Var
+        vector<int> temp;
+        symbol_table.add_scope_entry(tp, sVarName, temp);   // 加入符号表
+        ANALYSIS(constInitVal, ConstInitVal, 2);
+        Operand initVarOperand(symbol_table.get_scoped_name(sVarName), tp);
+        if (tp == Type::Int){       // 传上来的是六种情况之一
+            if (constInitVal->t == Type::IntLiteral){
+                buffer.push_back(new Instruction(OPERAND_NODE(constInitVal), Operand(), initVarOperand, Operator::def));
+            }
+            else{
+                Operand cvtOperand = castExpectedType(OPERAND_NODE(constInitVal), Type::Int, buffer);
+                buffer.push_back(new Instruction(cvtOperand, Operand(), initVarOperand, Operator::mov));
+            }
+        }
+        else{       // Float
+            if (constInitVal->t == Type::FloatLiteral){
+                buffer.push_back(new Instruction(OPERAND_NODE(constInitVal), Operand(), initVarOperand, Operator::fdef));
+            }
+            else{
+                Operand cvtOperand = castExpectedType(OPERAND_NODE(constInitVal), Type::Float, buffer);
+                buffer.push_back(new Instruction(cvtOperand, Operand(), initVarOperand, Operator::mov));
+            }
+        }
+        return;
+    }
+    // Ptr, 只要能想到int arr[2][2] = {{1,1}, {1,1}}就能想到为什么这个节点有个arrName了，定义语句放在ConstInitVal了, 同时类型可以在符号表里面去查了
+    tp == Type::Int ? Type::IntPtr : Type::FloatPtr;
+    if (root->children.size() == 6){       // 1D array: a [ 9 ] = 9
+        // TODO BUG : 根据样例，定义的时候，数组大小的Literal，我认为是Literal，有BUG再改
+        ANALYSIS(constExp, ConstExp, 2);
+        assert("constExp unprocessed: you need process is_computable");
+        TODO;
+        assert(TYPE_EQ_LITERAL(constExp) && "In frontend::Analyzer::analysisConstDef: Not a Literal");
+        int val = std::stoi(constExp->v);
+        vector<int> dim = {val};
+        buffer.push_back(new Instruction(OPERAND_NODE(constExp), Operand(), Operand(symbol_table.get_scoped_name(sVarName), tp), Operator::alloc));
+        symbol_table.add_scope_entry(tp, sVarName, dim);
+        ANALYSIS(constInitVal, ConstInitVal, 5);
+        return;
+    } 
+    else if (root->children.size() == 9){          // 2D array
+        ANALYSIS(constExp_1, ConstExp, 2);
+        ANALYSIS(constExp_2, ConstExp, 5);
+        assert((TYPE_EQ_LITERAL(constExp_2)&&TYPE_EQ_LITERAL(constExp_1)) && "In frontend::Analyzer::analysisConstDef: Not a Literal");
+        int val_1 = std::stoi(constExp_1->v);
+        int val_2 = std::stoi(constExp_2->v);
+        vector<int> dim = {val_1, val_2};
+        int tot = val_1 * val_2;
+        buffer.push_back(new Instruction(Operand(std::to_string(tot), Type::IntLiteral), Operand(), Operand(symbol_table.get_scoped_name(sVarName), tp), Operator::alloc));
+        symbol_table.add_scope_entry(tp, sVarName, dim);
+        ANALYSIS(constInitVal, ConstInitVal, 8);
+        return;
+    }
+    else{
+        assert("In frontend::Analyzer::analysisConstDef: Unexpected Children Size!");
+    }
 }
 
 // (value, type): ConstInitVal -> ConstExp |'{' [ ConstInitVal { ',' ConstInitVal } ] '}' // 常量表达式值，可能是个数组
 void frontend::Analyzer::analysisConstInitVal(ConstInitVal* root, vector<ir::Instruction*>& buffer){
-
+    // 看父节点类型，是COnstDef再考虑是否赋值，否则只管求值即可?Alloc如何看？
+    // 逻辑：父节点是数组则负责赋值，否则节点赋值
+    // 查了下用例，{}分支只可能是数组初始赋值，但是{{},{}}要小心考虑
+    AstNode *fa = root->parent;
+    if (fa->type == NodeType::CONSTDEF){
+        ConstDef* parent = dynamic_cast<ConstDef*>(fa);
+        std::string arrName = parent->arr_name;
+        STE arrSte = symbol_table.get_ste(arrName);
+        Type tp = arrSte.operand.type;
+        std::string arrScopedName = arrSte.operand.name;
+        if (tp == Type::IntPtr || tp == Type::FloatPtr){        // 数组赋值，根据SysY文档，不可能出现{{1,2},{3,4}}的情况
+            vector<int> &dim = symbol_table.get_ste(arrName).dimension;
+            int sz = 1;
+            for (int i: dim){
+                sz *= i;
+            }
+            if (root->children.size() == 2){
+                for (int i = 0; i < sz;i++){
+                    buffer.push_back(new Instruction(Operand(arrScopedName, tp), Operand(std::to_string(i), Type::IntLiteral), Operand("0", Type::IntLiteral), Operator::store));
+                }
+            }
+            else{
+                int childSize = root->children.size();
+                assert((sz * 2 + 1 == childSize) && "In frontend::Analyzer::analysisConstInitVal: Wrong Size of Initializer");
+                for (int i = 1; i < childSize; i += 2){
+                    ANALYSIS(constInitVal, ConstInitVal, i);
+                    assert(TYPE_EQ_LITERAL(constInitVal) && "In frontend::Analyzer::analysisConstInitVal: Not a Literal in initializing array");
+                    Type targetedTp = tp == Type::IntPtr ? Type::Int : Type::Float;
+                    buffer.push_back(new Instruction(Operand(arrScopedName, tp), Operand(std::to_string(i / 2), Type::IntLiteral), Operand(constInitVal->v, targetedTp), Operator::store));
+                }
+            }
+            return;
+        }
+    }
+    // 只赋值
+    ANALYSIS(constExp, ConstExp, 0);
+    assert(TYPE_EQ_LITERAL(constExp) && "In frontend::Analyzer::analysisConstInitVal: Not a Literal in analyse constExp");
+    root->v = constExp->v;
+    root->t = constExp->t;
+    return;
 }
 
 // (computable = True, value, type = int): ConstExp -> AddExp
@@ -219,12 +403,153 @@ void frontend::Analyzer::analysisConstExp(ConstExp* root, vector<ir::Instruction
 
 // (arrName): VarDef -> Ident { '[' ConstExp ']' } [ '=' InitVal ]                    
 void frontend::Analyzer::analysisVarDef(VarDef* root, vector<ir::Instruction*>& buffer){
-
+    Type tp = dynamic_cast<VarDecl*>(root->parent)->t;
+    assert((tp == Type::Int || tp == Type::Float) && "Invalid type in frontend::Analyzer::analysisVarDef");
+    GET_CHILD_PTR(ident, Term, 0);
+    std::string sVarName = ident->token.value;
+    root->arr_name = sVarName;      // 存的是原来的值，只是翻译的时候要重命名
+    // 这里要考虑未初始化的情况了！！！！！
+    int childNum = root->children.size();
+    GET_CHILD_PTR(pendingInitVal, AstNode, childNum - 1);
+    if (pendingInitVal->type == NodeType::INITVAL){     // 已初始化
+        if (root->children.size() == 3){            // Var
+            vector<int> temp;
+            symbol_table.add_scope_entry(tp, sVarName, temp);   // 加入符号表
+            ANALYSIS(initVal, InitVal, 2);
+            Operand initVarOperand(symbol_table.get_scoped_name(sVarName), tp);
+            if (tp == Type::Int){       // 传上来的是六种情况之一
+                if (initVal->t == Type::IntLiteral){
+                    buffer.push_back(new Instruction(OPERAND_NODE(initVal), Operand(), initVarOperand, Operator::def));
+                }
+                else{
+                    Operand cvtOperand = castExpectedType(OPERAND_NODE(initVal), Type::Int, buffer);
+                    buffer.push_back(new Instruction(cvtOperand, Operand(), initVarOperand, Operator::mov));
+                }
+            }
+            else{       // Float
+                if (initVal->t == Type::FloatLiteral){
+                    buffer.push_back(new Instruction(OPERAND_NODE(initVal), Operand(), initVarOperand, Operator::fdef));
+                }
+                else{
+                    Operand cvtOperand = castExpectedType(OPERAND_NODE(initVal), Type::Float, buffer);
+                    buffer.push_back(new Instruction(cvtOperand, Operand(), initVarOperand, Operator::mov));
+                }
+            }
+            return;
+        }
+        // Ptr, 只要能想到int arr[2][2] = {{1,1}, {1,1}}就能想到为什么这个节点有个arrName了，定义语句放在ConstInitVal了, 同时类型可以在符号表里面去查了
+        tp == Type::Int ? Type::IntPtr : Type::FloatPtr;
+        if (root->children.size() == 6){       // 1D array: a [ 9 ] = 9
+            // TODO BUG : 根据样例，定义的时候，数组大小的Literal，我认为是Literal，有BUG再改
+            ANALYSIS(constExp, ConstExp, 2);
+            assert("constExp unprocessed: you need process is_computable");
+            TODO;
+            assert(TYPE_EQ_LITERAL(constExp) && "In frontend::Analyzer::analysisVarDef: Not a Literal");
+            int val = std::stoi(constExp->v);
+            vector<int> dim = {val};
+            buffer.push_back(new Instruction(OPERAND_NODE(constExp), Operand(), Operand(symbol_table.get_scoped_name(sVarName), tp), Operator::alloc));
+            symbol_table.add_scope_entry(tp, sVarName, dim);
+            ANALYSIS(initVal, InitVal, 5);
+            return;
+        } 
+        else if (root->children.size() == 9){          // 2D array
+            ANALYSIS(constExp_1, ConstExp, 2);
+            ANALYSIS(constExp_2, ConstExp, 5);
+            assert((TYPE_EQ_LITERAL(constExp_2)&&TYPE_EQ_LITERAL(constExp_1)) && "In frontend::Analyzer::analysisVarDef: Not a Literal");
+            int val_1 = std::stoi(constExp_1->v);
+            int val_2 = std::stoi(constExp_2->v);
+            vector<int> dim = {val_1, val_2};
+            int tot = val_1 * val_2;
+            buffer.push_back(new Instruction(Operand(std::to_string(tot), Type::IntLiteral), Operand(), Operand(symbol_table.get_scoped_name(sVarName), tp), Operator::alloc));
+            symbol_table.add_scope_entry(tp, sVarName, dim);
+            ANALYSIS(initVal, InitVal, 8);
+            return;
+        }
+        else{
+            assert("In frontend::Analyzer::analysisVarDef: Unexpected Children Size");
+        }
+    }
+    else{       // 未初始化
+        if (root->children.size() == 1){
+            vector<int> temp;
+            symbol_table.add_scope_entry(tp, sVarName, temp);   // 加入符号表
+            if (tp == Type::Int){       // 传上来的是六种情况之一
+                buffer.push_back(new Instruction(Operand("0",Type::IntLiteral), Operand(), Operand(symbol_table.get_scoped_name(sVarName), tp), Operator::def));
+            }
+            else{       // Float
+                buffer.push_back(new Instruction(Operand("0.0",Type::FloatLiteral), Operand(), Operand(symbol_table.get_scoped_name(sVarName), tp), Operator::fdef));
+            }
+            return;
+        }
+        else if (root->children.size() == 4){
+            ANALYSIS(constExp, ConstExp, 2);
+            assert("constExp unprocessed: you need process is_computable");
+            TODO;
+            assert(TYPE_EQ_LITERAL(constExp) && "In frontend::Analyzer::analysisVarDef: Not a Literal");
+            int val = std::stoi(constExp->v);
+            vector<int> dim = {val};
+            buffer.push_back(new Instruction(OPERAND_NODE(constExp), Operand(), Operand(symbol_table.get_scoped_name(sVarName), tp), Operator::alloc));
+            symbol_table.add_scope_entry(tp, sVarName, dim);
+            return;
+        }
+        else if (root->children.size() == 7){
+            ANALYSIS(constExp_1, ConstExp, 2);
+            ANALYSIS(constExp_2, ConstExp, 5);
+            assert((TYPE_EQ_LITERAL(constExp_2)&&TYPE_EQ_LITERAL(constExp_1)) && "In frontend::Analyzer::analysisVarDef: Not a Literal");
+            int val_1 = std::stoi(constExp_1->v);
+            int val_2 = std::stoi(constExp_2->v);
+            vector<int> dim = {val_1, val_2};
+            int tot = val_1 * val_2;
+            buffer.push_back(new Instruction(Operand(std::to_string(tot), Type::IntLiteral), Operand(), Operand(symbol_table.get_scoped_name(sVarName), tp), Operator::alloc));
+            symbol_table.add_scope_entry(tp, sVarName, dim);
+            return;
+        }
+        else{
+            assert("In frontend::Analyzer::analysisVarDef: Unexpected Children Size");
+        }
+    }
 }
 
 // (computable = False, value, type): InitVal -> Exp | '{' [ InitVal { ',' InitVal } ] '}'
 void frontend::Analyzer::analysisInitVal(InitVal* root, vector<ir::Instruction*>& buffer){
-
+    // 看父节点类型，是VarDef再考虑是否赋值，否则只管求值即可?Alloc如何看？
+    // 逻辑：父节点是数组则负责赋值，否则节点赋值
+    // 查了下用例，{}分支只可能是数组初始赋值，但是{{},{}}要小心考虑
+    AstNode *fa = root->parent;
+    if (fa->type == NodeType::VARDEF){
+        VarDef* parent = dynamic_cast<VarDef*>(fa);
+        std::string arrName = parent->arr_name;
+        STE arrSte = symbol_table.get_ste(arrName);
+        Type tp = arrSte.operand.type;
+        std::string arrScopedName = arrSte.operand.name;
+        if (tp == Type::IntPtr || tp == Type::FloatPtr){        // 数组赋值，根据SysY文档，不可能出现{{1,2},{3,4}}的情况
+            vector<int> &dim = symbol_table.get_ste(arrName).dimension;
+            int sz = 1;
+            for (int i: dim){
+                sz *= i;
+            }
+            if (root->children.size() == 2){
+                for (int i = 0; i < sz;i++){
+                    buffer.push_back(new Instruction(Operand(arrScopedName, tp), Operand(std::to_string(i), Type::IntLiteral), Operand("0", Type::IntLiteral), Operator::store));
+                }
+            }
+            else{
+                int childSize = root->children.size();
+                for (int i = 1; i < childSize; i += 2){
+                    ANALYSIS(constInitVal, ConstInitVal, i);
+                    assert(TYPE_EQ_LITERAL(constInitVal) && "In frontend::Analyzer::analysisConstInitVal: Not a Literal in initializing array");
+                    Type targetedTp = tp == Type::IntPtr ? Type::Int : Type::Float;
+                    buffer.push_back(new Instruction(Operand(arrScopedName, tp), Operand(std::to_string(i / 2), Type::IntLiteral), Operand(constInitVal->v, targetedTp), Operator::store));
+                }
+            }
+            return;
+        }
+    }
+    // 只赋值
+    ANALYSIS(exp, Exp, 0);
+    root->v = exp->v;
+    root->t = exp->t;
+    return;
 }
 
 // (computable = False, value, type): Exp -> AddExp                                           // 加法表达式
@@ -234,8 +559,9 @@ void frontend::Analyzer::analysisExp(Exp* root, vector<ir::Instruction*>& buffer
 }
 
 // FuncType -> 'void' | 'int' | 'float'
-void frontend::Analyzer::analysisFuncType(FuncType* root, vector<ir::Instruction*>& buffer){
-
+Token frontend::Analyzer::analysisFuncType(FuncType* root, vector<ir::Instruction*>& buffer){
+    GET_CHILD_PTR(term, Term, 0);
+    return term->token;
 }
 
 // FuncFParam -> BType Ident ['[' ']' { '[' Exp ']' }]
@@ -468,7 +794,8 @@ void frontend::Analyzer::analysisUnaryExp(UnaryExp* root, vector<ir::Instruction
         }
     } 
     // UnaryExp -> Ident '(' [FuncRParams] ')'                 // 函数
-    else {    // Line 2  
+    else {    // Line 2
+        assert("In UnaryExp: TODO: hidden cast for paramList");
         // 函数的Ident我们放在symbol_table[0]下面
         GET_CHILD_PTR(term, Term, 0);
         Token tk = term->token;
@@ -476,12 +803,12 @@ void frontend::Analyzer::analysisUnaryExp(UnaryExp* root, vector<ir::Instruction
         if (root->children.size() == 4){    // FuncParams
             GET_CHILD_PTR(funcRParams, FuncRParams, 2);
             vector<Operand> paramList = analysisFuncRParams(funcRParams, buffer);
-            Type retType = symbol_table.get_operand_type(funcName);
+            Type retType = symbol_table.get_operand_type(funcName, true);
             ir::CallInst* callInst = new ir::CallInst(Operand(funcName, retType), paramList, Operand("$ret", retType));
             buffer.push_back(callInst);
         }
         else{
-            Type retType = symbol_table.get_operand_type(funcName);
+            Type retType = symbol_table.get_operand_type(funcName, true);
             ir::CallInst* callInst = new ir::CallInst(Operand(funcName, retType), Operand("$ret", retType));
             buffer.push_back(callInst);
         }
@@ -788,4 +1115,72 @@ void frontend::Analyzer::cumulativeComputing(Operand cumVar, Operand upVar, Oper
     finalOpt.type = isPtr ? tempPtrVar.type : upVar.type;
     buffer.push_back(new Instruction(cumVar, finalOpt, cumVar, opt));
 #undef TEM_F_VAR
+}
+
+// 搞了半天，发现这个函数十分有必要：将某个Operand转换为期望类型
+// 其中期望类型必定不是指针
+// 反正就6*4=24种情况
+// 返回期望的Operand
+// 本函数可能发生的变化： Literal->Var, Ptr->Var, Var->Var, type_cast
+// 涉及到类型转换就一定有Operand出现，指Literal->xx, 不可能有Literal->Literal
+// 步骤1： 平凡情况判等，return
+// 步骤2：判断字面量的类型转换，return
+// 步骤3：判断指针，读取出来，不return，operand变量变成var，注意ir指令压的啥
+// 步骤4：判断var的类型转换
+Operand frontend::Analyzer::castExpectedType(Operand operand, Type tp, vector<ir::Instruction*>& buffer){
+    assert((operand.type != Type::null) && "In frontend::Analyzer::castExpectedType: null operand!!!");
+    assert((Type::Int == tp || Type::Float == tp) && "In frontend::Analyzer::castExpectedType: unexpected target type!!!");
+    if (operand.type == tp)
+        return operand;
+    const std::string prefix = "$cst";
+    std::string srcVarName = operand.name;
+    std::string srcTarName = prefix + operand.name;
+    if (operand.type == Type::IntLiteral){  // IntLiteral -> Int | Float
+        Operand retOpe(srcTarName, tp);
+        if (tp == Type::Float){
+            buffer.push_back(new Instruction(operand, Operand(), retOpe, Operator::cvt_i2f));
+        }
+        else{
+            buffer.push_back(new Instruction(operand, Operand(), retOpe, Operator::def));
+        }
+        return retOpe;
+    }
+    else if(operand.type == Type::FloatLiteral){    // FloatLiteral -> Int | Float
+        Operand retOpe(srcTarName, tp);
+        if (tp == Type::Int){
+            buffer.push_back(new Instruction(operand, Operand(), retOpe, Operator::cvt_f2i));
+        }
+        else{
+            buffer.push_back(new Instruction(operand, Operand(), retOpe, Operator::fdef));
+        }
+        return retOpe;
+
+    }
+    // load ptr
+    if (operand.type == Type::IntPtr){      // IntPtr -> Int
+        Operand targetOperand(srcTarName, Type::Int);
+        Operand base("0", Type::Int);
+        buffer.push_back(new Instruction(operand, base, targetOperand, Operator::load));
+        operand.name = srcTarName;
+        operand.type = Type::Int;
+    }
+    else if (operand.type == Type::FloatPtr){   // FloatPtr -> Float
+        Operand targetOperand(srcTarName, Type::Float);
+        Operand base("0", Type::Int);
+        buffer.push_back(new Instruction(operand, base, targetOperand, Operator::load));
+        operand.name = srcTarName;
+        operand.type = Type::Float;
+    }
+    // consider convert Var->Var
+    if (operand.type == tp){        // FloatPtr->Float == Float, Int is the same, namely equal type
+        return operand;
+    }
+    operand.type = tp;
+    if (tp == Type::Int){
+        buffer.push_back(new Instruction(Operand(operand.name, Type::Float), Operand(), operand, Operator::cvt_f2i));
+    }
+    else{
+        buffer.push_back(new Instruction(Operand(operand.name, Type::Int), Operand(), operand, Operator::cvt_i2f));
+    }
+    return operand;
 }
