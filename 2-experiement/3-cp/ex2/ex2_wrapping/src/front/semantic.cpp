@@ -6,6 +6,8 @@
 #define DEBUG
 #ifdef DEBUG
     #include <iostream>
+    using std::cout;
+    using std::endl;
 #endif
 
 using frontend::Token;
@@ -205,6 +207,8 @@ ir::Program frontend::Analyzer::get_ir_program(CompUnit* root) {
     prog.addFunction(globalFunc);
     // 开始解析
     analysisCompUnit(root, prog);
+    // 全局变量加入 return 语句
+    prog.functions[0].InstVec.push_back(new Instruction(Operand(), Operand(), Operand(), Operator::_return));
     // 向prog里面加入全局变量
     ScopeInfo& globalValInfo = symbol_table.scope_stack[1];
     for (auto it: globalValInfo.table){
@@ -249,7 +253,6 @@ void frontend::Analyzer::analysisCompUnit(CompUnit* root, ir::Program& buffer){
             ir::CallInst* callGlobal = new ir::CallInst(ir::Operand("$global",ir::Type::null), ir::Operand("$t0",ir::Type::null));
             buffer.InstVec.insert(buffer.InstVec.begin(), callGlobal);
         }
-        std::cout << buffer.InstVec.size() << std::endl;
         prog.addFunction(buffer);       // prog加函数
     }
     if (root->children.size()!=1){
@@ -462,8 +465,8 @@ void frontend::Analyzer::analysisConstInitVal(ConstInitVal* root, vector<ir::Ins
 
 // (computable = True, value, type = int): ConstExp -> AddExp
 void frontend::Analyzer::analysisConstExp(ConstExp* root, vector<ir::Instruction*>& buffer){
-    ANALYSIS(constExp, ConstExp, 0);
-    COPY_EXP_NODE(constExp, root);
+    ANALYSIS(addExp, AddExp, 0);
+    COPY_EXP_NODE(addExp, root);
 }
 
 // (arrName): VarDef -> Ident { '[' ConstExp ']' } [ '=' InitVal ]                    
@@ -540,7 +543,8 @@ void frontend::Analyzer::analysisVarDef(VarDef* root, vector<ir::Instruction*>& 
             symbol_table.add_scope_entry(tp, sVarName, temp);   // 加入符号表
             return;
         }
-        else if (root->children.size() == 4){
+        tp = tp == Type::Int ? Type::IntPtr : Type::FloatPtr;
+        if (root->children.size() == 4){
             ANALYSIS(constExp, ConstExp, 2);
             assert("constExp unprocessed: you need process is_computable");
             TODO;
@@ -588,17 +592,28 @@ void frontend::Analyzer::analysisInitVal(InitVal* root, vector<ir::Instruction*>
                 sz *= i;
             }
             if (root->children.size() == 2){
+                Type targetedTp = tp == Type::IntPtr ? Type::IntLiteral : Type::FloatLiteral;
                 for (int i = 0; i < sz;i++){
-                    buffer.push_back(new Instruction(Operand(arrScopedName, tp), Operand(std::to_string(i), Type::IntLiteral), Operand("0", Type::IntLiteral), Operator::store));
+                    cout << toString(tp) << toString(targetedTp) << endl;
+                    buffer.push_back(\
+                        new Instruction( \
+                            Operand(arrScopedName, tp), \
+                            Operand(std::to_string(i), Type::IntLiteral), \
+                            Operand("0", targetedTp), \
+                            Operator::store\
+                        ));
                 }
             }
-            else{
+            else{   // Initizer不为空
                 int childSize = root->children.size();
                 for (int i = 1; i < childSize; i += 2){
-                    ANALYSIS(constInitVal, ConstInitVal, i);
-                    assert(TYPE_EQ_LITERAL(constInitVal) && "In frontend::Analyzer::analysisConstInitVal: Not a Literal in initializing array");
+                    ANALYSIS(initVal, InitVal, i);
+                    assert(TYPE_EQ_LITERAL(initVal) && "In frontend::Analyzer::analysisConstInitVal: Not a Literal in initializing array");
                     Type targetedTp = tp == Type::IntPtr ? Type::Int : Type::Float;
-                    buffer.push_back(new Instruction(Operand(arrScopedName, tp), Operand(std::to_string(i / 2), Type::IntLiteral), Operand(constInitVal->v, targetedTp), Operator::store));
+                    buffer.push_back(new Instruction(Operand(arrScopedName, tp), \
+                                                     Operand(std::to_string(i / 2), Type::IntLiteral), \
+                                                     Operand(initVal->v, targetedTp), \
+                                                     Operator::store));
                 }
             }
             return;
@@ -676,8 +691,9 @@ void frontend::Analyzer::analysisBlockItem(BlockItem* root, vector<ir::Instructi
 void frontend::Analyzer::analysisStmt(Stmt* root, vector<ir::Instruction*>& buffer){
     static std::set<ir::Instruction*> jump_eow;  // jump to end of while
     static std::set<ir::Instruction*> jump_bow;  // jump to begin of while
-    GET_CHILD_PTR(son0, Term, 0);
+    GET_CHILD_PTR(son0, AstNode, 0);
     if (son0->type == NodeType::TERMINAL){
+        GET_CHILD_PTR(son0, Term, 0);
         TokenType tktp = son0->token.type;
         /*      这里就 while - break - continue想到了算法：
          *      首先if cond goto xx, goto xx直接压进buffer
@@ -884,12 +900,6 @@ void frontend::Analyzer::analysisAddExp(AddExp* root, vector<ir::Instruction*>& 
     // 累计变量处理，同时赋值
     if (root->children.size() != 1){        // 在这里可以把ptr处理了，变为int/float，处理成变量开始累积
         root->v = ADDEXP_CUMVARNAME;
-        if (TYPE_EQ_F_LTR_PTR(root)){
-            buffer.push_back(new Instruction(Operand("0.0", Type::FloatLiteral), Operand(), OPERAND_NODE(root), Operator::fdef));
-        }
-        else{
-            buffer.push_back(new Instruction(Operand("0", Type::IntLiteral), Operand(), OPERAND_NODE(root), Operator::def));
-        }
         if (TYPE_EQ_PTR(root)){             // 指针
             root->t = TYPE_EQ(root, Type::FloatPtr) ? Type::Float : Type::Int;
             buffer.push_back(new Instruction(OPERAND_NODE(mulExpNode_0), Operand("0", Type::IntLiteral), OPERAND_NODE(root), Operator::load));

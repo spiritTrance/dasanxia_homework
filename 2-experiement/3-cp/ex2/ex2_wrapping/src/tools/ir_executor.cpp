@@ -9,6 +9,10 @@
 #define TODO assert(0 && "TODO");
 #define DEBUG_EXEC_BRIEF  1
 #define DEBUG_EXEC_DETAIL 1
+#if (DEBUG_EXEC_DETAIL || DEBUG_EXEC_BRIEF)
+    using std::cout;
+    using std::endl;
+#endif
 
 using ir::Type;
 
@@ -193,8 +197,8 @@ bool ir::Executor::exec_ir(size_t n) {
                     cxt_stack.pop();
                 }
                 else {
-                    cur_ctx = cxt_stack.top();
                     cxt_stack.pop();
+                    cur_ctx = cxt_stack.top();
                 }
             } break;
             case Operator::_goto: {
