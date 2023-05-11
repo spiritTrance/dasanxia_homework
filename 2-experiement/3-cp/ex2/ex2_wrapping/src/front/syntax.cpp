@@ -5,7 +5,7 @@
 
 using frontend::Parser;
 
-#define DEBUG_PARSER
+// #define DEBUG_PARSER
 #define TODO assert(0 && "todo")
 // 1.根据下一个 Token 类型的类型选择处理的产生式(一般只看下一个 Token 就可以选择产生式，少数情况下多个产生式的 first 集有交集时，应多向后看几个 Token)
 #define CUR_TOKEN_IS(tk_type) (token_stream[index].type == TokenType::tk_type)

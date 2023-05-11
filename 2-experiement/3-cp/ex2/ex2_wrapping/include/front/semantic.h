@@ -91,6 +91,7 @@ struct SymbolTable{
     ir::Operand get_operand(string id, bool) const;
     ir::Type get_operand_type(string id, bool) const;
     std::string get_operand_name(string id, bool) const;
+    ir::Type getCurrFuncType() const;
     // unsigned int get_array_offset(std::string, vector<int>) const;
 
     /**

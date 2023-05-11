@@ -3,6 +3,11 @@
 
 #include<cassert>
 
+#define DEBUG
+#ifdef DEBUG
+    #include <iostream>
+#endif
+
 using frontend::Token;
 using ir::Function;
 using ir::Instruction;
@@ -166,8 +171,23 @@ frontend::STE frontend::SymbolTable::get_ste(string id, bool isFunc = false) con
     assert(0 && assertErr.c_str());
 }
 
+ir::Type frontend::SymbolTable::getCurrFuncType() const{
+    int index = scope_stack.size() - 1;
+    std::string currScopeName = scope_stack[index].name;
+    assert(((currScopeName != "__$FuncScope") && (currScopeName != "__$GlobalScope")) && "Invalid query scope name.");
+    for (size_t i = 0; i < currScopeName.length();i++){
+        char ch = currScopeName[i];
+        if (ch == '$'){
+            currScopeName = currScopeName.substr(0, i);
+        }
+    }
+    auto it = scope_stack[0].table;
+    STE ste = it[currScopeName];
+    return ste.operand.type;
+}
+
 frontend::Analyzer::Analyzer(): tmp_cnt(0), symbol_table() {
-    TODO;
+    // TODO;
 }
 
 ir::Program frontend::Analyzer::get_ir_program(CompUnit* root) {
@@ -181,12 +201,12 @@ ir::Program frontend::Analyzer::get_ir_program(CompUnit* root) {
     ScopeInfo& globalValInfo = symbol_table.scope_stack[1];
     for (auto it: globalValInfo.table){
         const Operand operand = it.second.operand;
-        vector<int>& dim = it.second.dimension;
+        vector<int> dim = it.second.dimension;
         int maxLen = 1;
         for (int i: dim){
             maxLen *= i;
         }
-        if (dim.empty()){
+        if (!dim.size()){           // 不是数组
             ir::GlobalVal globalVal(operand);
             prog.globalVal.push_back(globalVal);
         }
@@ -211,6 +231,7 @@ void frontend::Analyzer::analysisCompUnit(CompUnit* root, ir::Program& buffer){
     else{               // 函数定义
         ir::Function buffer;
         ANALYSIS(decl, FuncDef, 0);
+        std::cout << buffer.InstVec.size() << std::endl;
         prog.addFunction(buffer);       // prog加函数
     }
     if (root->children.size()!=1){
@@ -231,7 +252,7 @@ void frontend::Analyzer::analysisDecl(Decl* root, vector<ir::Instruction*>& buff
 void frontend::Analyzer::analysisFuncDef(FuncDef* root, ir::Function& buffer){
     GET_CHILD_PTR(funcType, FuncType, 0);
     Token retTypeTk = analysisFuncType(funcType);
-    GET_CHILD_PTR(ident, Term, 0);
+    GET_CHILD_PTR(ident, Term, 1);
     // 返回参数
     buffer.returnType = retTypeTk.type == TokenType::VOIDTK ? Type::null :
                         retTypeTk.type == TokenType::INTTK ? Type::Int : Type::Float;
@@ -274,7 +295,7 @@ void frontend::Analyzer::analysisVarDecl(VarDecl* root, vector<ir::Instruction*>
     GET_CHILD_PTR(btype, BType, 0);
     Token tk = analysisBType(btype);
     root->t = tk.type == TokenType::INTTK ? Type::Int : Type::Float;
-    ANALYSIS(varDef, VarDef, 2);
+    ANALYSIS(varDef, VarDef, 1);
     size_t index = 3;
     while (index <= root->children.size() - 1)
     {
@@ -342,7 +363,7 @@ void frontend::Analyzer::analysisConstDef(ConstDef* root, vector<ir::Instruction
         return;
     }
     // Ptr, 只要能想到int arr[2][2] = {{1,1}, {1,1}}就能想到为什么这个节点有个arrName了，定义语句放在ConstInitVal了, 同时类型可以在符号表里面去查了
-    tp == Type::Int ? Type::IntPtr : Type::FloatPtr;
+    tp = tp == Type::Int ? Type::IntPtr : Type::FloatPtr;
     if (root->children.size() == 6){       // 1D array: a [ 9 ] = 9
         // TODO BUG : 根据样例，定义的时候，数组大小的Literal，我认为是Literal，有BUG再改
         ANALYSIS(constExp, ConstExp, 2);
@@ -461,7 +482,7 @@ void frontend::Analyzer::analysisVarDef(VarDef* root, vector<ir::Instruction*>& 
             return;
         }
         // Ptr, 只要能想到int arr[2][2] = {{1,1}, {1,1}}就能想到为什么这个节点有个arrName了，定义语句放在ConstInitVal了, 同时类型可以在符号表里面去查了
-        tp == Type::Int ? Type::IntPtr : Type::FloatPtr;
+        tp = tp == Type::Int ? Type::IntPtr : Type::FloatPtr;
         if (root->children.size() == 6){       // 1D array: a [ 9 ] = 9
             // TODO BUG : 根据样例，定义的时候，数组大小的Literal，我认为是Literal，有BUG再改
             ANALYSIS(constExp, ConstExp, 2);
@@ -496,12 +517,6 @@ void frontend::Analyzer::analysisVarDef(VarDef* root, vector<ir::Instruction*>& 
         if (root->children.size() == 1){
             vector<int> temp;
             symbol_table.add_scope_entry(tp, sVarName, temp);   // 加入符号表
-            if (tp == Type::Int){       // 传上来的是六种情况之一
-                buffer.push_back(new Instruction(Operand("0",Type::IntLiteral), Operand(), Operand(symbol_table.get_scoped_name(sVarName), tp), Operator::def));
-            }
-            else{       // Float
-                buffer.push_back(new Instruction(Operand("0.0",Type::FloatLiteral), Operand(), Operand(symbol_table.get_scoped_name(sVarName), tp), Operator::fdef));
-            }
             return;
         }
         else if (root->children.size() == 4){
@@ -602,7 +617,7 @@ Operand frontend::Analyzer::analysisFuncFParam(FuncFParam* root){
 // FuncFParams -> FuncFParam { ',' FuncFParam }            // 逗号表示重复
 vector<Operand> frontend::Analyzer::analysisFuncFParams(FuncFParams* root){
     vector<Operand> ans;
-    for (int i = 0; i < root->children.size(); i += 2){
+    for (size_t i = 0; i < root->children.size(); i += 2){
         FuncFParam *son = dynamic_cast<FuncFParam*>(root->children[i]);
         Operand op = analysisFuncFParam(son);
         ans.push_back(op);
@@ -612,7 +627,7 @@ vector<Operand> frontend::Analyzer::analysisFuncFParams(FuncFParams* root){
 
 // Block -> '{' { BlockItem } '}'                          // block由多个item构成，每个item以分号结尾，用大括号分隔表示block
 void frontend::Analyzer::analysisBlock(Block* root, vector<ir::Instruction*>& buffer){
-    for (int i = 1; i < root->children.size() - 1; i++){
+    for (size_t i = 1; i < root->children.size() - 1; i++){
         ANALYSIS(blockItem, BlockItem, i);
     }
 }
@@ -630,15 +645,160 @@ void frontend::Analyzer::analysisBlockItem(BlockItem* root, vector<ir::Instructi
 
 // ????(jump_eow, jump_bow):   Stmt -> LVal '=' Exp ';'                                // 对一个已有变量的赋值
 //                             Stmt -> Block                                           // 又是一个block
+//                             Stmt -> Exp ';'
 //                             Stmt -> 'if' '(' Cond ')' Stmt [ 'else' Stmt ]          // if else
 //                             Stmt -> 'while' '(' Cond ')' Stmt
 //                             Stmt -> 'break' ';'
 //                             Stmt -> 'continue' ';'
 //                             Stmt -> 'return' [Exp] ';'
-//                             Stmt -> Exp ';'
 //                             Stmt -> ';'
 void frontend::Analyzer::analysisStmt(Stmt* root, vector<ir::Instruction*>& buffer){
+    GET_CHILD_PTR(son0, Term, 0);
+    if (son0->type == NodeType::TERMINAL){
+        TokenType tktp = son0->token.type;
+        /*      这里就 while - break - continue想到了算法：
+         *      首先if cond goto xx, goto xx直接压进buffer
+         *      注意到while在结尾要调到开头
+         *      注意到jump_eow, jump_bow，考虑改成static变成全局变量
+         *      中间解析的时候，但凡碰到break/continue，第一个操作数先填上buffer的大小；operator先不管
+         * 然后在jump_eow和jump_bow填入指针
+         *      等到递归上来的时候，如果是while，记得还有个goto，然后检查jump_eow和jump_bow，根据记录的信息重新定位相对跳转位置
+         *      完美解决！
+         *      综上所述，所有的goto都要想办法重定位
+         */ 
 
+        switch (tktp)
+        {
+        //  Stmt -> 'if' '(' Cond ')' Stmt [ 'else' Stmt ]          // if else
+        case TokenType::IFTK:
+            int bufferSize = buffer.size();
+            ANALYSIS(cond, Cond, 2);
+            Instruction *inst_if = new Instruction(OPERAND_NODE(cond), Operand(), Operand("2", Type::IntLiteral), Operator::_goto);
+            Instruction *inst_else = new Instruction(Operand(), Operand(), Operand(), Operator::_goto);
+            buffer.push_back(inst_if);
+            buffer.push_back(inst_else);
+            ANALYSIS(stmt1, Stmt, 4);
+            int bufferSize_else = buffer.size();
+            int offsetSize = bufferSize_else - bufferSize - 1;
+            inst_else->des = Operand(std::to_string(offsetSize), Type::IntLiteral);
+            if (root->children.size() == 7){
+                ANALYSIS(stmt2, Stmt, 6);
+            }
+            else{
+                buffer.push_back(new Instruction(Operand(), Operand(), Operand(), Operator::__unuse__));
+            }
+            break;
+        //  Stmt -> 'while' '(' Cond ')' Stmt
+        case TokenType::WHILETK:
+            // 这里尤其注意在递归前不要向jump_eow和jump_bow加入指令！！！考虑while套while。
+            int bufferSize = buffer.size();
+            ANALYSIS(cond, Cond, 2);
+            Instruction *inst_if = new Instruction(OPERAND_NODE(cond), Operand(), Operand("2", Type::IntLiteral), Operator::_goto);
+            Instruction *inst_else = new Instruction(Operand(), Operand(), Operand(std::to_string(buffer.size()), Type::IntLiteral), Operator::_goto);
+            buffer.push_back(inst_if);
+            buffer.push_back(inst_else);
+            ANALYSIS(stmt1, Stmt, 4);
+            // while 结尾要跳回开头
+            Instruction *inst_begin = new Instruction(Operand(), Operand(), Operand(std::to_string(buffer.size()), Type::IntLiteral), Operator::_goto);
+            buffer.push_back(inst_begin);
+            root->jump_bow.insert(inst_begin);
+            root->jump_eow.insert(inst_else);
+            // 记录while块后的bufferSize;
+            int bufferEndSize = buffer.size();
+            int whileBlockSize = bufferEndSize - bufferSize;
+            // 处理continue
+            if (!root->jump_bow.empty()){
+                for (auto it = root->jump_bow.begin(); it !=root->jump_bow.end(); it++){
+                    int bufferSizeStamp = std::stoi((*it)->des.name);
+                    int preInstNum = bufferSizeStamp - bufferSize;
+                    int offset = -preInstNum;
+                    (*it)->des.name = std::to_string(offset);
+                }
+                root->jump_bow.clear();
+            }
+            // 处理nreak
+            if (!root->jump_eow.empty()){
+                for (auto it = root->jump_eow.begin(); it !=root->jump_eow.end(); it++){
+                    int bufferSizeStamp = std::stoi((*it)->des.name);
+                    int preInstNum = bufferSizeStamp - bufferSize;
+                    int offset = whileBlockSize - preInstNum;
+                    (*it)->des.name = std::to_string(offset);
+                }
+                root->jump_eow.clear();
+            }
+            // 加入nop
+            buffer.push_back(new Instruction(Operand(), Operand(), Operand(), Operator::__unuse__));
+            break;
+        // Stmt -> 'break' ';'
+        case TokenType::BREAKTK:
+            int bufferSize = buffer.size();
+            Instruction *inst = new Instruction(Operand(), Operand(), Operand(std::to_string(bufferSize), Type::IntLiteral), Operator::_goto);
+            root->jump_eow.insert(inst);
+            buffer.push_back(inst);
+            break;
+        // Stmt -> 'continue' ';'
+        case TokenType::CONTINUETK:
+            int bufferSize = buffer.size();
+            Instruction *inst = new Instruction(Operand(), Operand(), Operand(std::to_string(bufferSize), Type::IntLiteral), Operator::_goto);
+            root->jump_bow.insert(inst);
+            buffer.push_back(inst);
+            break;
+        // Stmt -> 'return' [Exp] ';'
+        case TokenType::RETURNTK:
+            if (root->children.size() == 3){        // Exp
+                ANALYSIS(exp, Exp, 1);              // 又是隐式类型转换！！！
+                Type currFuncRetType = symbol_table.getCurrFuncType();
+                assert(currFuncRetType != Type::null && "Unexpected Return type: null");
+                Operand ret = castExpectedType(OPERAND_NODE(exp), currFuncRetType, buffer);
+                buffer.push_back(new Instruction(ret, Operand(), Operand(), Operator::_return));
+            }
+            else{
+                buffer.push_back(new Instruction(Operand(), Operand(), Operand(), Operator::_return));
+            }
+            break;
+        // Stmt -> ';'
+        case TokenType::SEMICN:
+            break;
+        default:
+            assert("Unexpected TokenType!");
+            break;
+        }
+    }
+    // Stmt -> LVal '=' Exp ';'                                // 对一个已有变量的赋值
+    else if (son0->type == NodeType::LVAL){
+        ANALYSIS(lVal, LVal, 0);
+        ANALYSIS(exp, Exp, 2);
+        if (TYPE_EQ_PTR(lVal)){     // Ptr
+            Type targetType = (lVal->t == Type::FloatPtr) ? Type::Float : Type::Int;
+            targetType = (TYPE_EQ_LITERAL(exp)) ? targetType == Type::Float ? Type::FloatLiteral : Type::IntLiteral : targetType;
+            Operand storeValOpd = castExpectedType(OPERAND_NODE(exp), targetType, buffer);
+            buffer.push_back(new Instruction(OPERAND_NODE(lVal), Operand("0", Type::IntLiteral), storeValOpd, Operator::store));
+        }
+        else{       // Var
+            if (TYPE_EQ_FLOAT(lVal)){    // Float Var
+                Type targetType = TYPE_EQ_LITERAL(exp) ? Type::FloatLiteral : Type::Float;
+                Operand opd = castExpectedType(OPERAND_NODE(exp), targetType, buffer);
+                buffer.push_back(new Instruction(opd, Operand(), OPERAND_NODE(lVal), Operator::fmov));
+            }
+            else{
+                Type targetType = TYPE_EQ_LITERAL(exp) ? Type::IntLiteral : Type::Int;
+                Operand opd = castExpectedType(OPERAND_NODE(exp), targetType, buffer);
+                buffer.push_back(new Instruction(opd, Operand(), OPERAND_NODE(lVal), Operator::mov));
+            }
+        }
+    }
+    // Stmt -> Block
+    else if (son0->type == NodeType::BLOCK){
+        int index = symbol_table.scope_stack.size() - 1;
+        std::string currScopeName = symbol_table.scope_stack[index].name;
+        symbol_table.add_scope(currScopeName + "$lambda");
+        ANALYSIS(block, Block, 0);
+        symbol_table.exit_scope();
+    }
+    // Stmt -> Exp ';'
+    else if (son0->type == NodeType::EXP){
+        // 莫名奇妙，不需要翻译，又不产生赋值
+    }
 }
 
 // (computable = False, value, type, arrayIndex): LVal -> Ident {'[' Exp ']'}                             // 左值，可能是单个值也可能是数组,这个函数恶心在要返回指针可能
@@ -656,7 +816,7 @@ void frontend::Analyzer::analysisLVal(LVal* root, vector<ir::Instruction*>& buff
     const std::string targetName = V_PARSE_LVAL_PTR + root->v;
     if (root->children.size() == 4){   // 一维数组，暂时都返回指针
         ANALYSIS(expNode1, Exp, 2);
-        const vector<int>& dim = symbol_table.get_ste(tk.value).dimension;
+        const vector<int> dim = symbol_table.get_ste(tk.value).dimension;
         if (dim.size() == 1){
             buffer.push_back(new Instruction(arrOperand, Operand(expNode1->v, expNode1->t), Operand(targetName, root->t), Operator::getptr));
         } else {
@@ -680,7 +840,7 @@ void frontend::Analyzer::analysisLVal(LVal* root, vector<ir::Instruction*>& buff
 // (computable = False, value, type): AddExp -> MulExp { ('+' | '-') MulExp }
 void frontend::Analyzer::analysisAddExp(AddExp* root, vector<ir::Instruction*>& buffer){
     const std::string ADDEXP_CUMVARNAME = "$ad";
-    int index = 0;
+    size_t index = 0;
     ANALYSIS(mulExpNode_0, MulExp, index);
     COPY_EXP_NODE(mulExpNode_0, root);
     // 如果是个算术，那么$mu变量起累积作用，$mu为float或int
@@ -884,7 +1044,7 @@ vector<Operand> frontend::Analyzer::analysisFuncRParams(FuncRParams* root, vecto
 // 注意返回上来的依旧是六个情况             
 void frontend::Analyzer::analysisMulExp(MulExp* root, vector<ir::Instruction*>& buffer){
     const std::string MULEXP_CUMVARNAME = "$muc";
-    int index = 0;
+    size_t index = 0;
     ANALYSIS(unaryExpNode_0, UnaryExp, index);
     COPY_EXP_NODE(unaryExpNode_0, root);
     // 如果是个算术，那么$mu变量起累积作用，$mu为float或int
