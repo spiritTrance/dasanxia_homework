@@ -529,7 +529,7 @@ void frontend::Analyzer::analysisVarDef(VarDef* root, vector<ir::Instruction*>& 
         if (root->children.size() == 6){       // 1D array: a [ 9 ] = 9
             // TODO BUG : 根据样例，定义的时候，数组大小的Literal，我认为是Literal，有BUG再改
             ANALYSIS(constExp, ConstExp, 2);
-            assert("constExp unprocessed: you need process is_computable");
+            assert(0 && "constExp unprocessed: you need process is_computable");
             TODO;
             assert(TYPE_EQ_LITERAL(constExp) && "In frontend::Analyzer::analysisVarDef: Not a Literal");
             int val = std::stoi(constExp->v);
@@ -971,7 +971,7 @@ void frontend::Analyzer::analysisAddExp(AddExp* root, vector<ir::Instruction*>& 
     // 如果是个算术，那么$mu变量起累积作用，$mu为float或int
     // 累计变量处理，同时赋值
     if (root->children.size() != 1){        // 在这里可以把ptr处理了，变为int/float，处理成变量开始累积
-        root->v = ADDEXP_CUMVARNAME;
+        root->v = ADDEXP_CUMVARNAME + root->v;
         // 考察root的类型，即第一个操作数
         if (TYPE_EQ_PTR(root)){             // 指针
             root->t = TYPE_EQ(root, Type::FloatPtr) ? Type::Float : Type::Int;
@@ -1030,7 +1030,7 @@ void frontend::Analyzer::analysisLOrExp(LOrExp* root, vector<ir::Instruction*>& 
     COPY_EXP_NODE(lAndExp, root);
     if (root->children.size() == 3){
         ANALYSIS(lOrExp, LOrExp, 2);
-        Operand des(tem, Type::Int);
+        Operand des(tem + root->v, Type::Int);
         buffer.push_back(new Instruction(OPERAND_NODE(root), OPERAND_NODE(lOrExp), des, Operator::_or));
         root->v = des.name;
         root->t = des.type;
@@ -1117,6 +1117,8 @@ void frontend::Analyzer::analysisUnaryExp(UnaryExp* root, vector<ir::Instruction
             case TokenType::NOT:
                 // TODO BUG: 看文档只接受int，那我姑且认为进来来算的一定是int咯，有float报错了再回来cvt一下hhh，先懒得写了，考虑到底层表示，浮点数和整数都是全0，（一个例外是浮点数的负零）。我堵他没有这个特例，不考虑了
                 buffer.push_back(new Instruction(Operand(unaryExpNode->v, Type::Int), Operand(), Operand(targetVar, Type::Int), Operator::_not));
+                root->v = targetVar;
+                root->t = Type::Int;
                 break;
             default:
                 break;
@@ -1201,7 +1203,7 @@ void frontend::Analyzer::analysisMulExp(MulExp* root, vector<ir::Instruction*>& 
     // 如果是个算术，那么$mu变量起累积作用，$mu为float或int
     // 不为1则开始累积
     if (root->children.size() != 1){        // 在这里可以把ptr处理了，变为int/float，处理成变量开始累积
-        root->v = MULEXP_CUMVARNAME;
+        root->v = MULEXP_CUMVARNAME + root->v;
         if (TYPE_EQ_PTR(root)){             // 指针
             root->t = TYPE_EQ(root, Type::FloatPtr) ? Type::Float : Type::Int;
             buffer.push_back(new Instruction(OPERAND_NODE(unaryExpNode_0), Operand("0", Type::IntLiteral), OPERAND_NODE(root), Operator::load));
@@ -1257,7 +1259,7 @@ void frontend::Analyzer::analysisRelExp(RelExp* root, vector<ir::Instruction*>& 
         return;
     // 处理多次相等的情况，注意左结合性
     uint index = 2;
-    Operand des(tem, Type::Int);
+    Operand des(tem + root->v, Type::Int);
     ANALYSIS(addExp, AddExp, index);
     GET_CHILD_PTR(term, Term, index - 1);
     Operator opt;
@@ -1319,7 +1321,7 @@ void frontend::Analyzer::analysisEqExp(EqExp* root, vector<ir::Instruction*>& bu
         return;
     // 处理多次相等的情况，注意左结合性
     uint index = 2;
-    Operand des(tem, Type::Int);
+    Operand des(tem + root->v, Type::Int);
     ANALYSIS(relExp, RelExp, index);
     GET_CHILD_PTR(term, Term, index - 1);
     Operator opt;
@@ -1368,7 +1370,7 @@ void frontend::Analyzer::analysisLAndExp(LAndExp* root, vector<ir::Instruction*>
     cout << "LAndExp: " << root->v << ' ' << toString(root->t) << endl;
     if (root->children.size() == 3){
         ANALYSIS(lAndExp, LAndExp, 2);
-        Operand des(tem, Type::Int);
+        Operand des(tem + root->v, Type::Int);
         buffer.push_back(new Instruction(OPERAND_NODE(root), OPERAND_NODE(lAndExp), des, Operator::_and));
         root->v = des.name;
         root->t = des.type;
