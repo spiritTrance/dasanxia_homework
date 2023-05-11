@@ -1,4 +1,5 @@
-//test sub
+//test sub  
+//here we denote that the testcase here has a bug in group discussion
 const int a = 10;
 int main(){
     int b;

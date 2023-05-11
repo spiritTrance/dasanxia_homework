@@ -130,8 +130,8 @@ struct Analyzer {
     void analysisInitVal(InitVal*, vector<ir::Instruction*>&);
     void analysisExp(Exp*, vector<ir::Instruction*>&);
     frontend::Token analysisFuncType(FuncType*);
-    ir::Operand analysisFuncFParam(FuncFParam*);
-    std::vector<ir::Operand> analysisFuncFParams(FuncFParams*);
+    ir::Operand analysisFuncFParam(FuncFParam*, vector<ir::Instruction*>&);
+    std::vector<ir::Operand> analysisFuncFParams(FuncFParams*, vector<ir::Instruction*>&);
     void analysisBlock(Block*, vector<ir::Instruction*>&);
     void analysisBlockItem(BlockItem*, vector<ir::Instruction*>&);
     void analysisStmt(Stmt*, vector<ir::Instruction*>&);

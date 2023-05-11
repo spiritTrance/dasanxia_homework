@@ -9,7 +9,7 @@
 #define TODO assert(0 && "TODO");
 #define DEBUG_EXEC_BRIEF  1
 #define DEBUG_EXEC_DETAIL 1
-#if (DEBUG_EXEC_DETAIL || DEBUG_EXEC_BRIEF)
+#if (DEBUG_EXEC_DETAIL)
     using std::cout;
     using std::endl;
 #endif
