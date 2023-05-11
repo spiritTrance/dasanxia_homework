@@ -186,18 +186,26 @@ ir::Type frontend::SymbolTable::getCurrFuncType() const{
     return ste.operand.type;
 }
 
+std::string frontend::SymbolTable::getCurrScopeName() const{
+    int index = scope_stack.size() - 1;
+    std::string currScopeName = scope_stack[index].name;
+    return currScopeName;
+}
+
 frontend::Analyzer::Analyzer(): tmp_cnt(0), symbol_table() {
-    // TODO;
+    symbol_table.add_scope("__$FuncScope");
+    symbol_table.add_scope("__$GlobalScope");
 }
 
 ir::Program frontend::Analyzer::get_ir_program(CompUnit* root) {
-    TODO;
     ir::Program prog;
-    // 加入函数的scope和全局变量的Scope
-    symbol_table.add_scope("__$FuncScope");
-    symbol_table.add_scope("__$GlobalScope");
+    // 加$global函数
+    vector<ir::Operand> paramList;
+    ir::Function globalFunc("$global", paramList, Type::null);
+    prog.addFunction(globalFunc);
+    // 开始解析
     analysisCompUnit(root, prog);
-    // 加全局变量
+    // 向prog里面加入全局变量
     ScopeInfo& globalValInfo = symbol_table.scope_stack[1];
     for (auto it: globalValInfo.table){
         const Operand operand = it.second.operand;
@@ -223,14 +231,24 @@ ir::Program frontend::Analyzer::get_ir_program(CompUnit* root) {
 void frontend::Analyzer::analysisCompUnit(CompUnit* root, ir::Program& buffer){
     ir::Program &prog = buffer;
     GET_CHILD_PTR(son, AstNode, 0);
+    // Global加特判
     if (son->type == NodeType::DECL){           // 可能是定义变量
-        // 注意这里Local有个buffer，就很头疼，怎么区分啊
         vector<ir::Instruction *> buffer;
         ANALYSIS(decl, Decl, 0);
+        if (symbol_table.getCurrScopeName() == "__$GlobalScope"){      // 全局变量的declare
+            for (auto i: buffer){
+                prog.functions[0].InstVec.push_back(i);     // 固定0存的是$global函数
+            }
+        }
     }
-    else{               // 函数定义
+    // main加特判
+    else{               // 函数定义， FuncDef
         ir::Function buffer;
         ANALYSIS(decl, FuncDef, 0);
+        if (buffer.name == "main"){     // main函数call global函数
+            ir::CallInst* callGlobal = new ir::CallInst(ir::Operand("$global",ir::Type::null), ir::Operand("$t0",ir::Type::null));
+            buffer.InstVec.insert(buffer.InstVec.begin(), callGlobal);
+        }
         std::cout << buffer.InstVec.size() << std::endl;
         prog.addFunction(buffer);       // prog加函数
     }
@@ -263,6 +281,9 @@ void frontend::Analyzer::analysisFuncDef(FuncDef* root, ir::Function& buffer){
         GET_CHILD_PTR(funcFParams, FuncFParams, 3);
         buffer.ParameterList = analysisFuncFParams(funcFParams);
     }
+    // 记录函数名
+    vector<int> dim;
+    symbol_table.add_scope_entry(buffer.returnType, buffer.name, dim, true);
     // 注意Block要添加了
     symbol_table.add_scope(ident->token.value);
     ir::Function &func = buffer;
@@ -653,6 +674,8 @@ void frontend::Analyzer::analysisBlockItem(BlockItem* root, vector<ir::Instructi
 //                             Stmt -> 'return' [Exp] ';'
 //                             Stmt -> ';'
 void frontend::Analyzer::analysisStmt(Stmt* root, vector<ir::Instruction*>& buffer){
+    static std::set<ir::Instruction*> jump_eow;  // jump to end of while
+    static std::set<ir::Instruction*> jump_bow;  // jump to begin of while
     GET_CHILD_PTR(son0, Term, 0);
     if (son0->type == NodeType::TERMINAL){
         TokenType tktp = son0->token.type;
@@ -671,89 +694,103 @@ void frontend::Analyzer::analysisStmt(Stmt* root, vector<ir::Instruction*>& buff
         {
         //  Stmt -> 'if' '(' Cond ')' Stmt [ 'else' Stmt ]          // if else
         case TokenType::IFTK:
-            int bufferSize = buffer.size();
-            ANALYSIS(cond, Cond, 2);
-            Instruction *inst_if = new Instruction(OPERAND_NODE(cond), Operand(), Operand("2", Type::IntLiteral), Operator::_goto);
-            Instruction *inst_else = new Instruction(Operand(), Operand(), Operand(), Operator::_goto);
-            buffer.push_back(inst_if);
-            buffer.push_back(inst_else);
-            ANALYSIS(stmt1, Stmt, 4);
-            int bufferSize_else = buffer.size();
-            int offsetSize = bufferSize_else - bufferSize - 1;
-            inst_else->des = Operand(std::to_string(offsetSize), Type::IntLiteral);
-            if (root->children.size() == 7){
-                ANALYSIS(stmt2, Stmt, 6);
-            }
-            else{
-                buffer.push_back(new Instruction(Operand(), Operand(), Operand(), Operator::__unuse__));
+            {
+                int bufferSize = buffer.size();
+                ANALYSIS(cond, Cond, 2);
+                Instruction *inst_if = new Instruction(OPERAND_NODE(cond), Operand(), Operand("2", Type::IntLiteral), Operator::_goto);
+                Instruction *inst_else = new Instruction(Operand(), Operand(), Operand(), Operator::_goto);
+                buffer.push_back(inst_if);
+                buffer.push_back(inst_else);
+                ANALYSIS(stmt1, Stmt, 4);
+                int bufferSize_else = buffer.size();
+                int offsetSize = bufferSize_else - bufferSize - 1;
+                inst_else->des = Operand(std::to_string(offsetSize), Type::IntLiteral);
+                if (root->children.size() == 7){
+                    ANALYSIS(stmt2, Stmt, 6);
+                }
+                else{
+                    buffer.push_back(new Instruction(Operand(), Operand(), Operand(), Operator::__unuse__));
+                }
             }
             break;
         //  Stmt -> 'while' '(' Cond ')' Stmt
         case TokenType::WHILETK:
-            // 这里尤其注意在递归前不要向jump_eow和jump_bow加入指令！！！考虑while套while。
-            int bufferSize = buffer.size();
-            ANALYSIS(cond, Cond, 2);
-            Instruction *inst_if = new Instruction(OPERAND_NODE(cond), Operand(), Operand("2", Type::IntLiteral), Operator::_goto);
-            Instruction *inst_else = new Instruction(Operand(), Operand(), Operand(std::to_string(buffer.size()), Type::IntLiteral), Operator::_goto);
-            buffer.push_back(inst_if);
-            buffer.push_back(inst_else);
-            ANALYSIS(stmt1, Stmt, 4);
-            // while 结尾要跳回开头
-            Instruction *inst_begin = new Instruction(Operand(), Operand(), Operand(std::to_string(buffer.size()), Type::IntLiteral), Operator::_goto);
-            buffer.push_back(inst_begin);
-            root->jump_bow.insert(inst_begin);
-            root->jump_eow.insert(inst_else);
-            // 记录while块后的bufferSize;
-            int bufferEndSize = buffer.size();
-            int whileBlockSize = bufferEndSize - bufferSize;
-            // 处理continue
-            if (!root->jump_bow.empty()){
-                for (auto it = root->jump_bow.begin(); it !=root->jump_bow.end(); it++){
-                    int bufferSizeStamp = std::stoi((*it)->des.name);
-                    int preInstNum = bufferSizeStamp - bufferSize;
-                    int offset = -preInstNum;
-                    (*it)->des.name = std::to_string(offset);
+            {
+                // 这里尤其注意在递归前不要向jump_eow和jump_bow加入指令！！！考虑while套while。
+                int bufferSize = buffer.size();
+                ANALYSIS(cond, Cond, 2);
+                Instruction *inst_if = new Instruction(OPERAND_NODE(cond), Operand(), Operand("2", Type::IntLiteral), Operator::_goto);
+                Instruction *inst_else = new Instruction(Operand(), Operand(), Operand(std::to_string(buffer.size()), Type::IntLiteral), Operator::_goto);
+                buffer.push_back(inst_if);
+                buffer.push_back(inst_else);
+                ANALYSIS(stmt1, Stmt, 4);
+                // while 结尾要跳回开头
+                Instruction *inst_begin = new Instruction(Operand(), Operand(), Operand(std::to_string(buffer.size()), Type::IntLiteral), Operator::_goto);
+                buffer.push_back(inst_begin);
+                jump_bow.insert(inst_begin);
+                jump_eow.insert(inst_else);
+                // 记录while块后的bufferSize;
+                int bufferEndSize = buffer.size();
+                int whileBlockSize = bufferEndSize - bufferSize;
+                // 处理continue
+                if (!jump_bow.empty()){
+                    for (auto it = jump_bow.begin(); it !=jump_bow.end(); it++){
+                        int bufferSizeStamp = std::stoi((*it)->des.name);
+                        int preInstNum = bufferSizeStamp - bufferSize;
+                        int offset = -preInstNum;
+                        (*it)->des.name = std::to_string(offset);
+                    }
+                    jump_bow.clear();
                 }
-                root->jump_bow.clear();
-            }
-            // 处理nreak
-            if (!root->jump_eow.empty()){
-                for (auto it = root->jump_eow.begin(); it !=root->jump_eow.end(); it++){
-                    int bufferSizeStamp = std::stoi((*it)->des.name);
-                    int preInstNum = bufferSizeStamp - bufferSize;
-                    int offset = whileBlockSize - preInstNum;
-                    (*it)->des.name = std::to_string(offset);
+                // 处理nreak
+                if (!jump_eow.empty()){
+                    for (auto it = jump_eow.begin(); it !=jump_eow.end(); it++){
+                        int bufferSizeStamp = std::stoi((*it)->des.name);
+                        int preInstNum = bufferSizeStamp - bufferSize;
+                        int offset = whileBlockSize - preInstNum;
+                        (*it)->des.name = std::to_string(offset);
+                    }
+                    jump_eow.clear();
                 }
-                root->jump_eow.clear();
+                // 加入nop
+                buffer.push_back(new Instruction(Operand(), Operand(), Operand(), Operator::__unuse__));
             }
-            // 加入nop
-            buffer.push_back(new Instruction(Operand(), Operand(), Operand(), Operator::__unuse__));
             break;
         // Stmt -> 'break' ';'
         case TokenType::BREAKTK:
-            int bufferSize = buffer.size();
-            Instruction *inst = new Instruction(Operand(), Operand(), Operand(std::to_string(bufferSize), Type::IntLiteral), Operator::_goto);
-            root->jump_eow.insert(inst);
-            buffer.push_back(inst);
+            {
+                int bufferSize = buffer.size();
+                Instruction *inst = new Instruction(Operand(), Operand(), Operand(std::to_string(bufferSize), Type::IntLiteral), Operator::_goto);
+                jump_eow.insert(inst);
+                buffer.push_back(inst);
+            }
             break;
         // Stmt -> 'continue' ';'
         case TokenType::CONTINUETK:
-            int bufferSize = buffer.size();
-            Instruction *inst = new Instruction(Operand(), Operand(), Operand(std::to_string(bufferSize), Type::IntLiteral), Operator::_goto);
-            root->jump_bow.insert(inst);
-            buffer.push_back(inst);
+            {
+                int bufferSize = buffer.size();
+                Instruction *inst = new Instruction(Operand(), Operand(), Operand(std::to_string(bufferSize), Type::IntLiteral), Operator::_goto);
+                jump_bow.insert(inst);
+                buffer.push_back(inst);
+            }
             break;
         // Stmt -> 'return' [Exp] ';'
         case TokenType::RETURNTK:
-            if (root->children.size() == 3){        // Exp
-                ANALYSIS(exp, Exp, 1);              // 又是隐式类型转换！！！
-                Type currFuncRetType = symbol_table.getCurrFuncType();
-                assert(currFuncRetType != Type::null && "Unexpected Return type: null");
-                Operand ret = castExpectedType(OPERAND_NODE(exp), currFuncRetType, buffer);
-                buffer.push_back(new Instruction(ret, Operand(), Operand(), Operator::_return));
-            }
-            else{
-                buffer.push_back(new Instruction(Operand(), Operand(), Operand(), Operator::_return));
+            {
+                if (root->children.size() == 3){        // Exp
+                    ANALYSIS(exp, Exp, 1);              // 又是隐式类型转换！！！
+                    Type currFuncRetType = symbol_table.getCurrFuncType();
+                    currFuncRetType = TYPE_EQ_LITERAL(exp) ? 
+                                      currFuncRetType == Type::Int ? 
+                                      Type::IntLiteral : Type::FloatLiteral 
+                                                       : currFuncRetType;
+                    assert(currFuncRetType != Type::null && "Unexpected Return type: null");
+                    Operand ret = castExpectedType(OPERAND_NODE(exp), currFuncRetType, buffer);
+                    buffer.push_back(new Instruction(ret, Operand(), Operand(), Operator::_return));
+                }
+                else{
+                    buffer.push_back(new Instruction(Operand(), Operand(), Operand(), Operator::_return));
+                }
             }
             break;
         // Stmt -> ';'
@@ -847,6 +884,12 @@ void frontend::Analyzer::analysisAddExp(AddExp* root, vector<ir::Instruction*>& 
     // 累计变量处理，同时赋值
     if (root->children.size() != 1){        // 在这里可以把ptr处理了，变为int/float，处理成变量开始累积
         root->v = ADDEXP_CUMVARNAME;
+        if (TYPE_EQ_F_LTR_PTR(root)){
+            buffer.push_back(new Instruction(Operand("0.0", Type::FloatLiteral), Operand(), OPERAND_NODE(root), Operator::fdef));
+        }
+        else{
+            buffer.push_back(new Instruction(Operand("0", Type::IntLiteral), Operand(), OPERAND_NODE(root), Operator::def));
+        }
         if (TYPE_EQ_PTR(root)){             // 指针
             root->t = TYPE_EQ(root, Type::FloatPtr) ? Type::Float : Type::Int;
             buffer.push_back(new Instruction(OPERAND_NODE(mulExpNode_0), Operand("0", Type::IntLiteral), OPERAND_NODE(root), Operator::load));
@@ -1332,10 +1375,10 @@ void frontend::Analyzer::cumulativeComputing(Operand cumVar, Operand upVar, Oper
 // 步骤3：判断指针，读取出来，不return，operand变量变成var，注意ir指令压的啥
 // 步骤4：判断var的类型转换
 Operand frontend::Analyzer::castExpectedType(Operand operand, Type tp, vector<ir::Instruction*>& buffer){
+    if (operand.type == tp)
+    return operand;
     assert((operand.type != Type::null) && "In frontend::Analyzer::castExpectedType: null operand!!!");
     assert((Type::Int == tp || Type::Float == tp) && "In frontend::Analyzer::castExpectedType: unexpected target type!!!");
-    if (operand.type == tp)
-        return operand;
     const std::string prefix = "$cst";
     std::string srcVarName = operand.name;
     std::string srcTarName = prefix + operand.name;

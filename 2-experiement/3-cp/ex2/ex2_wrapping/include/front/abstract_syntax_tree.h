@@ -230,8 +230,8 @@ struct BlockItem: AstNode{
 
 struct Stmt: AstNode{
     // for while & break & continue, we need a vector to remember break & continue instruction
-    static std::set<ir::Instruction*> jump_eow;  // jump to end of while
-    static std::set<ir::Instruction*> jump_bow;  // jump to begin of while
+    // static std::set<ir::Instruction*> jump_eow;  // jump to end of while
+    // static std::set<ir::Instruction*> jump_bow;  // jump to begin of while
 
     /**
      * @brief constructor

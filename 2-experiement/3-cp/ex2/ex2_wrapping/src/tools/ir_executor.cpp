@@ -193,8 +193,8 @@ bool ir::Executor::exec_ir(size_t n) {
                     cxt_stack.pop();
                 }
                 else {
-                    cxt_stack.pop();
                     cur_ctx = cxt_stack.top();
+                    cxt_stack.pop();
                 }
             } break;
             case Operator::_goto: {
