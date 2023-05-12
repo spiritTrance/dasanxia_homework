@@ -1028,12 +1028,20 @@ void frontend::Analyzer::analysisLOrExp(LOrExp* root, vector<ir::Instruction*>& 
     const std::string tem = "$lor";
     ANALYSIS(lAndExp, LAndExp, 0);
     COPY_EXP_NODE(lAndExp, root);
+    Operand des;
     if (root->children.size() == 3){
+        buffer.push_back(new Instruction(OPERAND_NODE(root), Operand(), Operand(tem + root->v, root->t), Operator::mov));
+        int currBufferSize = buffer.size();
+        // short circult运算
+        Instruction *inst = new Instruction(Operand(tem + root->v, root->t), Operand(), Operand(std::to_string(currBufferSize), Type::IntLiteral), Operator::_goto);
+        buffer.push_back(inst);
         ANALYSIS(lOrExp, LOrExp, 2);
-        Operand des(tem + root->v, Type::Int);
+        des.name = tem + root->v;
+        des.type = Type::Int;
         buffer.push_back(new Instruction(OPERAND_NODE(root), OPERAND_NODE(lOrExp), des, Operator::_or));
         root->v = des.name;
         root->t = des.type;
+        inst->des.name = std::to_string(buffer.size() - currBufferSize);
     }
 }
 
@@ -1116,7 +1124,7 @@ void frontend::Analyzer::analysisUnaryExp(UnaryExp* root, vector<ir::Instruction
                 break;
             case TokenType::NOT:
                 // TODO BUG: 看文档只接受int，那我姑且认为进来来算的一定是int咯，有float报错了再回来cvt一下hhh，先懒得写了，考虑到底层表示，浮点数和整数都是全0，（一个例外是浮点数的负零）。我堵他没有这个特例，不考虑了
-                buffer.push_back(new Instruction(Operand(unaryExpNode->v, Type::Int), Operand(), Operand(targetVar, Type::Int), Operator::_not));
+                buffer.push_back(new Instruction(Operand(unaryExpNode->v, unaryExpNode->t), Operand(), Operand(targetVar, Type::Int), Operator::_not));
                 root->v = targetVar;
                 root->t = Type::Int;
                 break;
@@ -1369,11 +1377,19 @@ void frontend::Analyzer::analysisLAndExp(LAndExp* root, vector<ir::Instruction*>
     COPY_EXP_NODE(lEqExp, root);
     cout << "LAndExp: " << root->v << ' ' << toString(root->t) << endl;
     if (root->children.size() == 3){
+        buffer.push_back(new Instruction(OPERAND_NODE(lEqExp), Operand(), Operand(tem + root->v, root->t), Operator::mov));
+        buffer.push_back(new Instruction(Operand(tem + root->v, root->t), Operand(), Operand("2", Type::IntLiteral), Operator::_goto));
+        int prevBufferSize = buffer.size();
+        // 短路运算
+        Instruction *inst = new Instruction(Operand(), Operand(), Operand("0", Type::IntLiteral), Operator::_goto);
+        buffer.push_back(inst);
         ANALYSIS(lAndExp, LAndExp, 2);
         Operand des(tem + root->v, Type::Int);
         buffer.push_back(new Instruction(OPERAND_NODE(root), OPERAND_NODE(lAndExp), des, Operator::_and));
         root->v = des.name;
         root->t = des.type;
+        int currBufferSize = buffer.size();
+        inst->des.name = std::to_string(currBufferSize - prevBufferSize);
     }
 }
 
