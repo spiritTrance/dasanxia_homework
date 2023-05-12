@@ -113,3 +113,45 @@ bool frontend::isProbableDigit(std::string s, char ch){
         }
     }
 }
+
+int frontend::evalInt(std::string s) {
+    for (char ch: s){
+        if (ch == '.'){
+            return int(std::stof(s));       // 浮点数
+        }
+    }
+    if (s.size() >= 2 && (s.substr(0,2)=="0b" || s.substr(0,2)=="0B")) {
+        return std::stoi(s.substr(2, s.size()-2), nullptr, 2); 
+    }
+    else if (s.size() >= 2 && (s.substr(0,2)=="0x" || s.substr(0,2)=="0X")) {
+        return std::stoi(s.substr(2, s.size()-2), nullptr, 16);
+    }
+    else if (s.size() > 1 && s.substr(0,1)=="0") {
+        return std::stoi(s.substr(1, s.size()-1), nullptr, 8);
+    }
+    else {
+        return std::stoi(s);
+    }
+}
+float frontend::evalFloat(std::string s) {
+    for (char ch: s){
+        if (ch == '.'){
+            return std::stof(s);       // 浮点数
+        }
+    }
+    // 整数
+    int ans = 0;
+    if (s.size() >= 2 && (s.substr(0,2)=="0b" || s.substr(0,2)=="0B")) {
+        ans = std::stoi(s.substr(2, s.size()-2), nullptr, 2); 
+    }
+    else if (s.size() >= 2 && (s.substr(0,2)=="0x" || s.substr(0,2)=="0X")) {
+        ans = std::stoi(s.substr(2, s.size()-2), nullptr, 16);
+    }
+    else if (s.size() > 1 && s.substr(0,1)=="0") {
+        ans = std::stoi(s.substr(1, s.size()-1), nullptr, 8);
+    }
+    else {
+        ans = std::stoi(s);
+    }
+    return float(ans);
+}

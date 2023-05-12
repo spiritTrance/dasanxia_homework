@@ -62,7 +62,7 @@ struct SymbolTable{
     void add_scope_entry(frontend::STE, bool);
     void add_scope_entry(ir::Operand, std::vector<int>, bool);
     void add_scope_entry(ir::Type, std::string, std::vector<int>, bool);
-    
+    void add_scope_const_entry(ir::Type, std::string, std::string);
 
     /**
      * @brief exit a scope, pop out infomations
@@ -151,6 +151,7 @@ struct Analyzer {
     void analysisLAndExp(LAndExp*, vector<ir::Instruction*>&);
     void cumulativeComputing(ir::Operand, ir::Operand, ir::Operator, vector<ir::Instruction*>&);
     ir::Operand castExpectedType(ir::Operand, ir::Type, vector<ir::Instruction*>&);
+    bool constNumberComputing(ir::Operand, ir::Operand, ir::Operand&, frontend::TokenType);
     // reject copy & assignment
     Analyzer(const Analyzer&) = delete;
     Analyzer& operator=(const Analyzer&) = delete;

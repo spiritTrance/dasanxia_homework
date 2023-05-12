@@ -18,6 +18,8 @@ namespace frontend{
     bool isUselessChar(char ch);
     bool isInGrammarCharset(char ch);
     bool isProbableDigit(std::string s, char ch);
+    int evalInt(std::string s);
+    float evalFloat(std::string s);
 }
 
 #endif
