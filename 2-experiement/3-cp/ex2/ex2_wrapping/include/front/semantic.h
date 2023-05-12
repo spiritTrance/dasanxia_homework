@@ -47,6 +47,7 @@ map<std::string,ir::Function*>* get_lib_funcs();
 struct SymbolTable{
     vector<ScopeInfo> scope_stack;      // idents record, sort by scope
     map<std::string,ir::Function*> functions;   // record functions
+    int count = 0;
 
     /**
      * @brief enter a new scope, record the infomation in scope stacks
@@ -119,7 +120,7 @@ struct Analyzer {
     ir::Program get_ir_program(CompUnit*);
     void analysisCompUnit(CompUnit*, ir::Program&);
     void analysisDecl(Decl*, vector<ir::Instruction*>&);
-    void analysisFuncDef(FuncDef*, ir::Function&);
+    void analysisFuncDef(FuncDef*, ir::Function*&);
     void analysisConstDecl(ConstDecl*, vector<ir::Instruction*>&);
     void analysisVarDecl(VarDecl*, vector<ir::Instruction*>&);
     frontend::Token analysisBType(BType*);
@@ -143,7 +144,7 @@ struct Analyzer {
     void analysisPrimaryExp(PrimaryExp*, vector<ir::Instruction*>&);
     void analysisUnaryExp(UnaryExp*, vector<ir::Instruction*>&);
     frontend::Token analysisUnaryOp(UnaryOp*, vector<ir::Instruction*>&);
-    std::vector<ir::Operand> analysisFuncRParams(FuncRParams*, vector<ir::Instruction*>&);
+    std::vector<ir::Operand> analysisFuncRParams(FuncRParams*, vector<ir::Operand>& ,vector<ir::Instruction*>&);
     void analysisMulExp(MulExp*, vector<ir::Instruction*>&);
     void analysisRelExp(RelExp*, vector<ir::Instruction*>&);
     void analysisEqExp(EqExp*, vector<ir::Instruction*>&);
