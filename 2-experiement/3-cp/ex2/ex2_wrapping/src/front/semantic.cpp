@@ -1168,6 +1168,9 @@ void frontend::Analyzer::analysisUnaryExp(UnaryExp* root, vector<ir::Instruction
                 Function *libFunc = it->second;
                 vector<Operand> paramList = analysisFuncRParams(funcRParams, libFunc->ParameterList, buffer);
                 Type retType = libFunc->returnType;
+                // if (retType!=Type::null){
+                //     buffer.push_back(new Instruction(Operand("0", retType == Type::Int ? Type::IntLiteral : Type::FloatLiteral), Operand(), Operand("$ret", retType), retType == Type::Int ? Operator::def : Operator::fdef));
+                // }
                 ir::CallInst *callInst = new ir::CallInst(Operand(funcName, retType), paramList, Operand("$ret", retType));
                 buffer.push_back(callInst);
                 root->t = retType;
@@ -1175,6 +1178,9 @@ void frontend::Analyzer::analysisUnaryExp(UnaryExp* root, vector<ir::Instruction
             else{
                 vector<Operand> paramList = analysisFuncRParams(funcRParams, func->ParameterList, buffer);
                 Type retType = symbol_table.get_operand_type(funcName, true);
+                // if (retType!=Type::null){
+                //     buffer.push_back(new Instruction(Operand("0", retType == Type::Int ? Type::IntLiteral : Type::FloatLiteral), Operand(), Operand("$ret", retType), retType == Type::Int ? Operator::def : Operator::fdef));
+                // }
                 ir::CallInst* callInst = new ir::CallInst(Operand(funcName, retType), paramList, Operand("$ret", retType));
                 buffer.push_back(callInst);
                 root->t = retType;
@@ -1184,12 +1190,18 @@ void frontend::Analyzer::analysisUnaryExp(UnaryExp* root, vector<ir::Instruction
             if (it != get_lib_funcs()->end()){      // 是库函数
                 Function *libFunc = it->second;
                 Type retType = libFunc->returnType;
+                // if (retType!=Type::null){
+                //     buffer.push_back(new Instruction(Operand("0", retType == Type::Int ? Type::IntLiteral : Type::FloatLiteral), Operand(), Operand("$ret", retType), retType == Type::Int ? Operator::def : Operator::fdef));
+                // }
                 ir::CallInst *callInst = new ir::CallInst(Operand(funcName, retType), Operand("$ret", retType));
                 buffer.push_back(callInst);
                 root->t = retType;
             }
             else{
                 Type retType = symbol_table.get_operand_type(funcName, true);
+                // if (retType!=Type::null){
+                //     buffer.push_back(new Instruction(Operand("0", retType == Type::Int ? Type::IntLiteral : Type::FloatLiteral), Operand(), Operand("$ret", retType), retType == Type::Int ? Operator::def : Operator::fdef));
+                // }
                 ir::CallInst* callInst = new ir::CallInst(Operand(funcName, retType), Operand("$ret", retType));
                 buffer.push_back(callInst);
                 root->t = retType;

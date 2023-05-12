@@ -6,9 +6,9 @@ int main() {
     if (+-!!!a) {
         a = - - -1;
     }
-    /*else {
+    else {
         a = 0 + + b;
     }
     putint(a);
-    return 0;*/
+    return 0;
 }

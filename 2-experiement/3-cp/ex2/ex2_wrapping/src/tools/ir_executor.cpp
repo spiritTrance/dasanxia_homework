@@ -169,6 +169,7 @@ bool ir::Executor::exec_ir(size_t n) {
 #endif
         switch (inst->op) {
             case Operator::_return: {
+                std::cout<<"Debug: "<<"Alarm"<<std::endl;
                 if (cur_ctx->retval_addr != nullptr) {
                     switch (inst->op1.type) {
                     case Type::IntLiteral:
@@ -193,8 +194,8 @@ bool ir::Executor::exec_ir(size_t n) {
                     cxt_stack.pop();
                 }
                 else {
-                    cxt_stack.pop();
                     cur_ctx = cxt_stack.top();
+                    cxt_stack.pop();
                 }
             } break;
             case Operator::_goto: {
