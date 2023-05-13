@@ -152,6 +152,7 @@ struct Analyzer {
     void cumulativeComputing(ir::Operand, ir::Operand, ir::Operator, vector<ir::Instruction*>&);
     ir::Operand castExpectedType(ir::Operand, ir::Type, vector<ir::Instruction*>&);
     bool constNumberComputing(ir::Operand, ir::Operand, ir::Operand&, frontend::TokenType);
+    std::string getReturnTempName(vector<ir::Operand>&) const;
     // reject copy & assignment
     Analyzer(const Analyzer&) = delete;
     Analyzer& operator=(const Analyzer&) = delete;

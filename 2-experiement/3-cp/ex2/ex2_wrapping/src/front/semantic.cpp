@@ -1,3 +1,4 @@
+// DEBUG LOG: 有个GLOBAL_SCOPE_NAME，就是全局非常量变量的初始化，我弄的是全局变量无脑store为0，后面看情况改
 #include"front/semantic.h"
 #include"front/auxiliary_function.h"
 
@@ -45,6 +46,9 @@ typedef unsigned int uint;
 #define TYPE_EQ_LITERAL(node) (TYPE_EQ(node, Type::IntLiteral) || TYPE_EQ(node, Type::FloatLiteral))
 #define TYPE_EQ_VAR(node) (TYPE_EQ(node, Type::Float) || TYPE_EQ(node, Type::Int))
 // 其他乱七八糟的
+#define GLOBAL_SCOPE_NAME "__$GlobalScope"
+#define FUNC_SCOPE_NAME "__$FuncScope"
+#define GLOBAL_FUNC_NAME "global"
 #define OPERAND_NODE(node) (Operand(node->v, node->t))
 #define NODEPTR_CAST(type) dynamic_cast<type*>
 map<std::string,ir::Function*>* frontend::get_lib_funcs() {
@@ -176,7 +180,7 @@ frontend::STE frontend::SymbolTable::get_ste(string id, bool isFunc = false) con
 ir::Type frontend::SymbolTable::getCurrFuncType() const{
     int index = scope_stack.size() - 1;
     std::string currScopeName = scope_stack[index].name;
-    assert(((currScopeName != "__$FuncScope") && (currScopeName != "__$GlobalScope")) && "Invalid query scope name.");
+    assert(((currScopeName != FUNC_SCOPE_NAME) && (currScopeName != GLOBAL_SCOPE_NAME)) && "Invalid query scope name.");
     for (size_t i = 0; i < currScopeName.length();i++){
         char ch = currScopeName[i];
         if (ch == '$'){
@@ -195,15 +199,15 @@ std::string frontend::SymbolTable::getCurrScopeName() const{
 }
 
 frontend::Analyzer::Analyzer(): tmp_cnt(0), symbol_table() {
-    symbol_table.add_scope("__$FuncScope");
-    symbol_table.add_scope("__$GlobalScope");
+    symbol_table.add_scope(FUNC_SCOPE_NAME);
+    symbol_table.add_scope(GLOBAL_SCOPE_NAME);
 }
 
 ir::Program frontend::Analyzer::get_ir_program(CompUnit* root) {
     ir::Program* prog = new ir::Program;
     // 加$global函数
     vector<ir::Operand> paramList;
-    ir::Function globalFunc("$global", paramList, Type::null);
+    ir::Function globalFunc(GLOBAL_FUNC_NAME, paramList, Type::null);
     prog->addFunction(globalFunc);
     // 开始解析
     analysisCompUnit(root, *prog);
@@ -249,7 +253,7 @@ void frontend::Analyzer::analysisCompUnit(CompUnit* root, ir::Program& buffer){
     if (son->type == NodeType::DECL){           // 可能是定义变量
         vector<ir::Instruction *> buffer;
         ANALYSIS(decl, Decl, 0);
-        if (symbol_table.getCurrScopeName() == "__$GlobalScope"){      // 全局变量的declare
+        if (symbol_table.getCurrScopeName() == GLOBAL_SCOPE_NAME){      // 全局变量的declare
             for (auto i: buffer){
                 prog.functions[0].InstVec.push_back(i);     // 固定0存的是$global函数
             }
@@ -260,7 +264,7 @@ void frontend::Analyzer::analysisCompUnit(CompUnit* root, ir::Program& buffer){
         ir::Function* buffer = new Function();
         ANALYSIS(funcDef, FuncDef, 0);
         if (buffer->name == "main"){     // main函数call global函数
-            ir::CallInst* callGlobal = new ir::CallInst(ir::Operand("$global",ir::Type::null), ir::Operand("$t0",ir::Type::null));
+            ir::CallInst* callGlobal = new ir::CallInst(ir::Operand(GLOBAL_FUNC_NAME,ir::Type::null), ir::Operand("$t0",ir::Type::null));
             buffer->InstVec.insert(buffer->InstVec.begin(), callGlobal);
         }
         prog.addFunction(*buffer);       // prog加函数
@@ -587,6 +591,7 @@ void frontend::Analyzer::analysisVarDef(VarDef* root, vector<ir::Instruction*>& 
         const Type zero_Vartype = tp == Type::IntPtr ? Type::Int : Type::Float;
         const Operator opr = tp == Type::IntPtr ? Operator::def : Operator::fdef;
         buffer.push_back(new Instruction(Operand("0", zero_Literaltype), Operand(), Operand(zero_varName, zero_Vartype), opr));
+        // 一维数组
         if (root->children.size() == 4){
             ANALYSIS(constExp, ConstExp, 2);
             // assert("constExp unprocessed: you need process is_computable");
@@ -596,9 +601,11 @@ void frontend::Analyzer::analysisVarDef(VarDef* root, vector<ir::Instruction*>& 
             int val = std::stoi(constExp->v);
             vector<int> dim = {val};
             std::string arr_scopedName = symbol_table.get_scoped_name(sVarName);
-            buffer.push_back(new Instruction(OPERAND_NODE(constExp), Operand(), Operand(arr_scopedName, tp), Operator::alloc));
-            for (int i = 0; i < val;i++){
-                buffer.push_back(new Instruction(Operand(arr_scopedName, tp), Operand(std::to_string(i), Type::IntLiteral), Operand(zero_varName, zero_Vartype), Operator::store));
+            if (symbol_table.getCurrScopeName() != "GLOBAL_SCOPE_NAME"){
+                buffer.push_back(new Instruction(OPERAND_NODE(constExp), Operand(), Operand(arr_scopedName, tp), Operator::alloc));
+                for (int i = 0; i < val;i++){
+                    buffer.push_back(new Instruction(Operand(arr_scopedName, tp), Operand(std::to_string(i), Type::IntLiteral), Operand(zero_varName, zero_Vartype), Operator::store));
+                }
             }
             symbol_table.add_scope_entry(tp, sVarName, dim);
             return;
@@ -612,9 +619,11 @@ void frontend::Analyzer::analysisVarDef(VarDef* root, vector<ir::Instruction*>& 
             vector<int> dim = {val_1, val_2};
             int tot = val_1 * val_2;
             std::string arr_scopedName = symbol_table.get_scoped_name(sVarName);
-            buffer.push_back(new Instruction(Operand(std::to_string(tot), Type::IntLiteral), Operand(), Operand(arr_scopedName, tp), Operator::alloc));
-            for (int i = 0; i < tot;i++){
-                buffer.push_back(new Instruction(Operand(arr_scopedName, tp), Operand(std::to_string(i), Type::IntLiteral), Operand(zero_varName, zero_Vartype), Operator::store));
+            if (symbol_table.getCurrScopeName() != "GLOBAL_SCOPE_NAME"){
+                buffer.push_back(new Instruction(Operand(std::to_string(tot), Type::IntLiteral), Operand(), Operand(arr_scopedName, tp), Operator::alloc));
+                for (int i = 0; i < tot;i++){
+                    buffer.push_back(new Instruction(Operand(arr_scopedName, tp), Operand(std::to_string(i), Type::IntLiteral), Operand(zero_varName, zero_Vartype), Operator::store));
+                }
             }
             symbol_table.add_scope_entry(tp, sVarName, dim);
             return;
@@ -1267,7 +1276,8 @@ void frontend::Analyzer::analysisUnaryExp(UnaryExp* root, vector<ir::Instruction
         cout << "In unaryExp: " << funcName << endl;
         // 确定是不是库函数
         auto it = get_lib_funcs()->find(funcName);
-        if (root->children.size() == 4){    // FuncParams
+        std::string retVarName = "$ret";
+        if (root->children.size() == 4){    // 有形参，处理FuncParams
             GET_CHILD_PTR(funcRParams, FuncRParams, 2);
             Function *func = nullptr;
             if (symbol_table.functions.find(funcName)!= symbol_table.functions.end()){
@@ -1280,7 +1290,8 @@ void frontend::Analyzer::analysisUnaryExp(UnaryExp* root, vector<ir::Instruction
                 // if (retType!=Type::null){
                 //     buffer.push_back(new Instruction(Operand("0", retType == Type::Int ? Type::IntLiteral : Type::FloatLiteral), Operand(), Operand("$ret", retType), retType == Type::Int ? Operator::def : Operator::fdef));
                 // }
-                ir::CallInst *callInst = new ir::CallInst(Operand(funcName, retType), paramList, Operand("$ret", retType));
+                retVarName = getReturnTempName(paramList);
+                ir::CallInst *callInst = new ir::CallInst(Operand(funcName, retType), paramList, Operand(retVarName, retType));
                 buffer.push_back(callInst);
                 root->t = retType;
             }
@@ -1290,19 +1301,20 @@ void frontend::Analyzer::analysisUnaryExp(UnaryExp* root, vector<ir::Instruction
                 // if (retType!=Type::null){
                 //     buffer.push_back(new Instruction(Operand("0", retType == Type::Int ? Type::IntLiteral : Type::FloatLiteral), Operand(), Operand("$ret", retType), retType == Type::Int ? Operator::def : Operator::fdef));
                 // }
-                ir::CallInst* callInst = new ir::CallInst(Operand(funcName, retType), paramList, Operand("$ret", retType));
+                retVarName = getReturnTempName(paramList);
+                ir::CallInst* callInst = new ir::CallInst(Operand(funcName, retType), paramList, Operand(retVarName, retType));
                 buffer.push_back(callInst);
                 root->t = retType;
             }
         }
-        else{
+        else{       // 无形参
             if (it != get_lib_funcs()->end()){      // 是库函数
                 Function *libFunc = it->second;
                 Type retType = libFunc->returnType;
                 // if (retType!=Type::null){
                 //     buffer.push_back(new Instruction(Operand("0", retType == Type::Int ? Type::IntLiteral : Type::FloatLiteral), Operand(), Operand("$ret", retType), retType == Type::Int ? Operator::def : Operator::fdef));
                 // }
-                ir::CallInst *callInst = new ir::CallInst(Operand(funcName, retType), Operand("$ret", retType));
+                ir::CallInst *callInst = new ir::CallInst(Operand(funcName, retType), Operand(retVarName, retType));
                 buffer.push_back(callInst);
                 root->t = retType;
             }
@@ -1311,12 +1323,12 @@ void frontend::Analyzer::analysisUnaryExp(UnaryExp* root, vector<ir::Instruction
                 // if (retType!=Type::null){
                 //     buffer.push_back(new Instruction(Operand("0", retType == Type::Int ? Type::IntLiteral : Type::FloatLiteral), Operand(), Operand("$ret", retType), retType == Type::Int ? Operator::def : Operator::fdef));
                 // }
-                ir::CallInst* callInst = new ir::CallInst(Operand(funcName, retType), Operand("$ret", retType));
+                ir::CallInst* callInst = new ir::CallInst(Operand(funcName, retType), Operand(retVarName, retType));
                 buffer.push_back(callInst);
                 root->t = retType;
             }
         }
-        root->v = "$ret";
+        root->v = retVarName;
         // Instruction callInst = ir::CallInst(函数返回值, 形参列表, Operand());
         // buffer.push_back(&callInst);
     }
@@ -1443,6 +1455,7 @@ void frontend::Analyzer::analysisRelExp(RelExp* root, vector<ir::Instruction*>& 
         return;
     }
     // 处理多次相等的情况，注意左结合性
+    // 这里是处理两次的特殊情况
     uint index = 2;
     Operand des(tem + root->v, Type::Int);
     ANALYSIS(addExp, AddExp, index);
@@ -1681,8 +1694,10 @@ void frontend::Analyzer::cumulativeComputing(Operand cumVar, Operand upVar, Oper
 // 步骤3：判断指针，读取出来，不return，operand变量变成var，注意ir指令压的啥
 // 步骤4：判断var的类型转换
 Operand frontend::Analyzer::castExpectedType(Operand operand, Type tp, vector<ir::Instruction*>& buffer){
-    if (operand.type == tp)
-    return operand;
+    cout << "In cast checker: " << operand.name << ' ' << toString(operand.type) <<' '<<toString(tp)<< endl;
+    if (operand.type == tp){
+        return operand;
+    }
     assert((operand.type != Type::null) && "In frontend::Analyzer::castExpectedType: null operand!!!");
     assert((Type::Int == tp || Type::Float == tp) && "In frontend::Analyzer::castExpectedType: unexpected target type!!!");
     const std::string prefix = "$cst";
@@ -1795,4 +1810,12 @@ bool frontend::Analyzer::constNumberComputing(Operand op1, Operand op2, Operand&
         }
     }
     return true;
+}
+
+std::string frontend::Analyzer::getReturnTempName(vector<ir::Operand>& paramList) const{
+    std::string ans = "$ret";
+    for (auto i: paramList){
+        ans += i.name;
+    }
+    return ans;
 }
