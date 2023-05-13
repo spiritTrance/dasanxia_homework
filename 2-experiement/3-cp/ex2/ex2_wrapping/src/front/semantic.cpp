@@ -109,7 +109,7 @@ void frontend::SymbolTable::add_scope_entry(Type type, std::string name, vector<
 }
 
 void frontend::SymbolTable::add_scope_const_entry(ir::Type tp, std::string ident, std::string value){
-    cout << "In add_scope_const_entry: " <<ident<<' '<<value <<' '<<toString(tp)<<endl;
+    // cout << "In add_scope_const_entry: " <<ident<<' '<<value <<' '<<toString(tp)<<endl;
     assert((tp == Type::IntLiteral || tp == Type::FloatLiteral) && "Not a constant!");
     Operand operand(ident, tp);
     STE ste;
@@ -1043,7 +1043,6 @@ void frontend::Analyzer::analysisAddExp(AddExp* root, vector<ir::Instruction*>& 
     if (root->children.size() == 1){
         return;
     }
-    // 如果是个算术，那么$mu变量起累积作用，$mu为float或int
     // 累计变量处理，同时赋值
     if (root->children.size() != 1){        // 在这里可以把ptr处理了，变为int/float，处理成变量开始累积
         // 考察root的类型，即第一个操作数
@@ -1084,7 +1083,11 @@ void frontend::Analyzer::analysisAddExp(AddExp* root, vector<ir::Instruction*>& 
         }
         else{                               // 变量
             root->v = ADDEXP_CUMVARNAME + root->v;
-            buffer.push_back(new Instruction(OPERAND_NODE(mulExpNode_0), Operand(), OPERAND_NODE(root), Operator::mov));
+            Type cumDesType = TYPE_EQ_FLOAT(mulExpNode_0) ? Type::Float : Type::Int;
+            Operand cumOpd = castExpectedType(OPERAND_NODE(root), cumDesType, buffer);
+            root->t = cumOpd.type;
+            Operator assignOp = cumDesType == Type::Float ? Operator::fmov : Operator::mov;
+            buffer.push_back(new Instruction(OPERAND_NODE(mulExpNode_0), Operand(), OPERAND_NODE(root), assignOp));
         }
     }
     // 开始计算
@@ -1407,7 +1410,11 @@ void frontend::Analyzer::analysisMulExp(MulExp* root, vector<ir::Instruction*>& 
         }
         else{                               // 变量
             root->v = MULEXP_CUMVARNAME + root->v;
-            buffer.push_back(new Instruction(OPERAND_NODE(unaryExpNode_0), Operand(), OPERAND_NODE(root), Operator::mov));
+            Type cumDesType = TYPE_EQ_FLOAT(unaryExpNode_0) ? Type::Float : Type::Int;
+            Operand cumOpd = castExpectedType(OPERAND_NODE(root), cumDesType, buffer);
+            root->t = cumOpd.type;
+            Operator assignOp = cumDesType == Type::Float ? Operator::fmov : Operator::mov;
+            buffer.push_back(new Instruction(OPERAND_NODE(unaryExpNode_0), Operand(), OPERAND_NODE(root), assignOp));
         }
     }
     // 开始计算
@@ -1446,73 +1453,59 @@ void frontend::Analyzer::analysisRelExp(RelExp* root, vector<ir::Instruction*>& 
     const std::string tem = "$rel";
     ANALYSIS(addExp_0, AddExp, 0);
     COPY_EXP_NODE(addExp_0, root);
-    if (root->children.size() == 1){        // 把指针处理掉
-        if (TYPE_EQ_PTR(root)){
-            Operand des = castExpectedType(OPERAND_NODE(root), root->t == Type::FloatPtr ? Type::Float : Type::Int, buffer);
-            root->v = des.name;
-            root->t = des.type;
-        }
+    // 把指针处理掉，然后到cond那里都不需要讨论指针的情况了
+    if (TYPE_EQ_PTR(root)){
+        Operand des = castExpectedType(OPERAND_NODE(root), root->t == Type::FloatPtr ? Type::Float : Type::Int,  buffer);
+        root->v = des.name;
+        root->t = des.type;
+    }
+    if (root->children.size() == 1){
         return;
     }
     // 处理多次相等的情况，注意左结合性
-    // 这里是处理两次的特殊情况
-    uint index = 2;
-    Operand des(tem + root->v, Type::Int);
-    ANALYSIS(addExp, AddExp, index);
-    GET_CHILD_PTR(term, Term, index - 1);
-    Operator opt;
-    switch (term->token.type)
+    // 构造累积变量
+    Type desTargetType = TYPE_EQ_F_LTR_PTR(root) ? Type::Float : Type::Int;
+    std::string desTargetName = tem + root->v;
+        // 四种情况
+    Operator assignOp = (root->t == Type::IntLiteral && desTargetType == Type::Int) ? Operator::def :
+                        (root->t == Type::Int && desTargetType == Type::Int) ? Operator::mov :
+                        (root->t == Type::FloatLiteral && desTargetType == Type::Float) ? Operator::fdef : Operator::fmov;
+    Operand des(desTargetName, desTargetType);
+    buffer.push_back(new Instruction(OPERAND_NODE(root), Operand(), des, assignOp));
+    for (size_t index = 2; index < root->children.size(); index++)
     {
-    case TokenType::LEQ:
-        opt = Operator::leq;
-        break;
-    case TokenType::LSS:
-        opt = Operator::lss;
-        break;
-    case TokenType::GEQ:
-        opt = Operator::geq;
-        break;
-    case TokenType::GTR:
-        opt = Operator::gtr;
-        break;
-    default:
-        assert(0 && "In frontend::Analyzer::analysisRelExp: Invalid operator type");
-        break;
-    }
-    // 添加核心指令
-    // 注意考虑指针的情况
-    Type op1Type = TYPE_EQ_PTR(root) ? root->t == Type::IntPtr ? Type::Int : Type::Float : root->t;
-    Type op2Type = TYPE_EQ_PTR(addExp) ? addExp->t == Type::IntPtr ? Type::Int : Type::Float : addExp->t;
-    Operand op1 = castExpectedType(OPERAND_NODE(root), op1Type, buffer);
-    Operand op2 = castExpectedType(OPERAND_NODE(addExp), op2Type, buffer);
-    buffer.push_back(new Instruction(op1, op2, des, opt));
-    index += 2;
-    while (index <= root->children.size() - 1){
         ANALYSIS(addExp, AddExp, index);
         GET_CHILD_PTR(term, Term, index - 1);
+        // 检查des的隐式类型转换
+        // 才不想进行常数优化，恶心
+        Type desCastType = (des.type == Type::Float || Type::FloatLiteral == des.type) ? \
+                        Type::Float : (TYPE_EQ_F_LTR_PTR(addExp) ? Type::Float : Type::Int);
+        des = castExpectedType(des, desCastType, buffer);
+        // 检查上来的参数的类型转换
         Operator opt;
         switch (term->token.type)
         {
         case TokenType::LEQ:
-            opt = Operator::leq;
+            opt = des.type == Type::Int ? Operator::leq : Operator::fleq;
             break;
         case TokenType::LSS:
-            opt = Operator::lss;
+            opt = des.type == Type::Int ? Operator::lss : Operator::flss;
             break;
         case TokenType::GEQ:
-            opt = Operator::geq;
+            opt = des.type == Type::Int ? Operator::geq : Operator::fgeq;
             break;
         case TokenType::GTR:
-            opt = Operator::gtr;
+            opt = des.type == Type::Int ? Operator::gtr : Operator::fgtr;
             break;
         default:
             assert(0 && "In frontend::Analyzer::analysisRelExp: Invalid operator type");
             break;
         }
-        Type op2Type = TYPE_EQ_PTR(addExp) ? addExp->t == Type::IntPtr ? Type::Int : Type::Float : addExp->t;
+        TODO;
+        //TODO: 类型检查，考虑字面量的转换！！！
+        Type op2Type = Type::TODO;
         Operand op2 = castExpectedType(OPERAND_NODE(addExp), op2Type, buffer);
         buffer.push_back(new Instruction(des, op2, des, opt));
-        index += 2;
     }
     root->v = des.name;
     root->t = des.type;
@@ -1526,43 +1519,42 @@ void frontend::Analyzer::analysisEqExp(EqExp* root, vector<ir::Instruction*>& bu
     if (root->children.size() == 1)
         return;
     // 处理多次相等的情况，注意左结合性
-    uint index = 2;
-    Operand des(tem + root->v, Type::Int);
-    ANALYSIS(relExp, RelExp, index);
-    GET_CHILD_PTR(term, Term, index - 1);
-    Operator opt;
-    switch (term->token.type)
+    // 构造累积变量
+    Type desTargetType = TYPE_EQ_F_LTR_PTR(root) ? Type::Float : Type::Int;
+    std::string desTargetName = tem + root->v;
+        // 四种情况
+    Operator assignOp = (root->t == Type::IntLiteral && desTargetType == Type::Int) ? Operator::def :
+                        (root->t == Type::Int && desTargetType == Type::Int) ? Operator::mov :
+                        (root->t == Type::FloatLiteral && desTargetType == Type::Float) ? Operator::fdef : Operator::fmov;
+    Operand des(desTargetName, desTargetType);
+    buffer.push_back(new Instruction(OPERAND_NODE(root), Operand(), des, assignOp));
+    for (size_t index = 2; index < root->children.size(); index++)
     {
-    case TokenType::NEQ:
-        opt = Operator::neq;
-        break;
-    case TokenType::EQL:
-        opt = Operator::eq;
-        break;
-    default:
-        assert(0 && "In frontend::Analyzer::analysisEqExp: Invalid operator type");
-        break;
-    }
-    buffer.push_back(new Instruction(OPERAND_NODE(root), OPERAND_NODE(relExp), des, opt));
-    index += 2;
-    while (index <= root->children.size() - 1){
         ANALYSIS(relExp, RelExp, index);
         GET_CHILD_PTR(term, Term, index - 1);
+        // 检查隐式类型转换
+        // 才不想进行常数优化，恶心
+        Type castType = (des.type == Type::Float || Type::FloatLiteral == des.type) ? \
+                        Type::Float : TYPE_EQ_F_LTR_PTR(relExp) ? Type::Float : Type::Int;
+        des = castExpectedType(des, castType, buffer);
         Operator opt;
         switch (term->token.type)
         {
-        case TokenType::NEQ:
-            opt = Operator::neq;
-            break;
         case TokenType::EQL:
-            opt = Operator::eq;
+            opt = des.type == Type::Int ? Operator::eq : Operator::feq;
+            break;
+        case TokenType::NEQ:
+            opt = des.type == Type::Int ? Operator::neq : Operator::fneq;
             break;
         default:
-            assert(0 && "In frontend::Analyzer::analysisEqExp: Invalid operator type");
+            assert(0 && "In frontend::Analyzer::analysisRelExp: Invalid operator type");
             break;
         }
-        buffer.push_back(new Instruction(des, OPERAND_NODE(relExp), des, opt));
-        index += 2;
+        // 这里也可以常数优化，但我欸嘿就是不做，实验4舔到分就算成功
+        Type op2Type = TYPE_EQ_PTR(relExp) ? relExp->t == Type::IntPtr ? Type::Int : Type::Float : relExp->t;
+        Operand op2 = castExpectedType(OPERAND_NODE(relExp), op2Type, buffer);
+
+        buffer.push_back(new Instruction(des, op2, des, opt));
     }
     root->v = des.name;
     root->t = des.type;
@@ -1697,6 +1689,12 @@ Operand frontend::Analyzer::castExpectedType(Operand operand, Type tp, vector<ir
     cout << "In cast checker: " << operand.name << ' ' << toString(operand.type) <<' '<<toString(tp)<< endl;
     if (operand.type == tp){
         return operand;
+    }
+    if (operand.type == Type::IntLiteral && tp == Type::FloatLiteral){          // 字面量提升
+        return Operand(std::to_string(frontend::evalFloat(operand.name)), tp);
+    }
+    if (operand.type == Type::FloatLiteral && tp == Type::IntLiteral){          // 字面量缩减
+        return Operand(std::to_string(frontend::evalInt(operand.name)), tp);
     }
     assert((operand.type != Type::null) && "In frontend::Analyzer::castExpectedType: null operand!!!");
     assert((Type::Int == tp || Type::Float == tp) && "In frontend::Analyzer::castExpectedType: unexpected target type!!!");
