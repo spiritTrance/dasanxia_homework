@@ -1,4 +1,5 @@
 // DEBUG LOG: 有个GLOBAL_SCOPE_NAME，就是全局非常量变量的初始化，我弄的是全局变量无脑store为0，后面看情况改
+// sVarDef: mov是有bug的
 #include"front/semantic.h"
 #include"front/auxiliary_function.h"
 
@@ -540,7 +541,7 @@ void frontend::Analyzer::analysisVarDef(VarDef* root, vector<ir::Instruction*>& 
                 }
                 else{
                     Operand cvtOperand = castExpectedType(OPERAND_NODE(initVal), Type::Float, buffer);
-                    buffer.push_back(new Instruction(cvtOperand, Operand(), initVarOperand, Operator::mov));
+                    buffer.push_back(new Instruction(cvtOperand, Operand(), initVarOperand, Operator::fmov));
                 }
             }
             return;
@@ -831,6 +832,7 @@ void frontend::Analyzer::analysisStmt(Stmt* root, vector<ir::Instruction*>& buff
         case TokenType::IFTK:
             {
                 ANALYSIS(cond, Cond, 2);
+                cout << "In Stmt: " << cond->v << ' ' << toString(cond->t) << endl;
                 int bufferSize = buffer.size();
                 Instruction *inst_if = new Instruction(OPERAND_NODE(cond), Operand(), Operand("2", Type::IntLiteral), Operator::_goto);
                 Instruction *inst_else = new Instruction(Operand(), Operand(), Operand(), Operator::_goto);
@@ -956,12 +958,12 @@ void frontend::Analyzer::analysisStmt(Stmt* root, vector<ir::Instruction*>& buff
             buffer.push_back(new Instruction(OPERAND_NODE(lVal), Operand("0", Type::IntLiteral), storeValOpd, Operator::store));
         }
         else{       // Var
-            if (TYPE_EQ_FLOAT(lVal)){    // Float Var
+            if (TYPE_EQ_FLOAT(lVal)){    // Float Var, 注意这里可能存在向上类型转换
                 Type targetType = TYPE_EQ_LITERAL(exp) ? Type::FloatLiteral : Type::Float;
                 Operand opd = castExpectedType(OPERAND_NODE(exp), targetType, buffer);
                 buffer.push_back(new Instruction(opd, Operand(), OPERAND_NODE(lVal), Operator::fmov));
             }
-            else{
+            else{   // Int Var, 注意这里可能存在向下类型转换
                 Type targetType = TYPE_EQ_LITERAL(exp) ? Type::IntLiteral : Type::Int;
                 Operand opd = castExpectedType(OPERAND_NODE(exp), targetType, buffer);
                 buffer.push_back(new Instruction(opd, Operand(), OPERAND_NODE(lVal), Operator::mov));
@@ -1101,8 +1103,9 @@ void frontend::Analyzer::analysisAddExp(AddExp* root, vector<ir::Instruction*>& 
         // 累计变量的类型转换
         if (TYPE_EQ_INT(root) && TYPE_EQ_F_LTR_PTR(mulExpNode))
         {
-            root->t = Type::Float;
-            buffer.push_back(new Instruction(Operand(root->v, Type::Int), Operand(), Operand(root->v, Type::Float), Operator::cvt_i2f));
+            Operand cvtRootDes = castExpectedType(OPERAND_NODE(root), Type::Float, buffer);
+            root->v = cvtRootDes.name;
+            root->t = cvtRootDes.type;
         }
         switch (tk.type)
         {
@@ -1132,14 +1135,40 @@ void frontend::Analyzer::analysisLOrExp(LOrExp* root, vector<ir::Instruction*>& 
     COPY_EXP_NODE(lAndExp, root);
     Operand des;
     if (root->children.size() == 3){
-        buffer.push_back(new Instruction(OPERAND_NODE(root), Operand(), Operand(tem + root->v, root->t), Operator::mov));
-        int currBufferSize = buffer.size();
+        Type rootCvtType = TYPE_EQ_LITERAL(lAndExp) ? Type::IntLiteral : Type::Int;
+        Operand rootCvtOpd = castExpectedType(OPERAND_NODE(lAndExp), rootCvtType, buffer);
+        Operator op = rootCvtType == Type::IntLiteral ? Operator::def : Operator::mov;
+        buffer.push_back(new Instruction(rootCvtOpd, Operand(), Operand(tem + root->v, Type::Int), op));
+
         // short circult运算
-        Instruction *inst = new Instruction(Operand(tem + root->v, root->t), Operand(), Operand(std::to_string(currBufferSize), Type::IntLiteral), Operator::_goto);
-        buffer.push_back(inst);
-        ANALYSIS(lOrExp, LOrExp, 2);
         des.name = tem + root->v;
         des.type = Type::Int;
+        int currBufferSize = buffer.size();
+        Instruction *inst = new Instruction(des, Operand(), Operand(std::to_string(currBufferSize), Type::IntLiteral), Operator::_goto);
+        buffer.push_back(inst);
+        ANALYSIS(lOrExp, LOrExp, 2);
+        // 恶心，原来_or也要转换成整型变量？？？
+        if (TYPE_EQ_LITERAL(root) && TYPE_EQ_LITERAL(lOrExp)){   // 两个字面量很逆天，于是我选择常数优化特判
+            int ia, ib;
+            if (root->t == Type::IntLiteral){
+                ia = frontend::evalInt(root->v);
+            }
+            else{
+                float a = frontend::evalFloat(root->v);
+                ia = a ? 1 : 0;
+            }
+            if (lOrExp->t == Type::IntLiteral){
+                ib = frontend::evalInt(lOrExp->v);
+            }
+            else{
+                float b = frontend::evalFloat(lOrExp->v);
+                ib = b ? 1 : 0;
+            }
+            root->v = (ia || ib) ? "1" : "0";
+            root->t = Type::IntLiteral;
+            return;
+        }
+
         buffer.push_back(new Instruction(OPERAND_NODE(root), OPERAND_NODE(lOrExp), des, Operator::_or));
         root->v = des.name;
         root->t = des.type;
@@ -1301,9 +1330,6 @@ void frontend::Analyzer::analysisUnaryExp(UnaryExp* root, vector<ir::Instruction
             else{
                 vector<Operand> paramList = analysisFuncRParams(funcRParams, func->ParameterList, buffer);
                 Type retType = symbol_table.get_operand_type(funcName, true);
-                // if (retType!=Type::null){
-                //     buffer.push_back(new Instruction(Operand("0", retType == Type::Int ? Type::IntLiteral : Type::FloatLiteral), Operand(), Operand("$ret", retType), retType == Type::Int ? Operator::def : Operator::fdef));
-                // }
                 retVarName = getReturnTempName(paramList);
                 ir::CallInst* callInst = new ir::CallInst(Operand(funcName, retType), paramList, Operand(retVarName, retType));
                 buffer.push_back(callInst);
@@ -1314,26 +1340,18 @@ void frontend::Analyzer::analysisUnaryExp(UnaryExp* root, vector<ir::Instruction
             if (it != get_lib_funcs()->end()){      // 是库函数
                 Function *libFunc = it->second;
                 Type retType = libFunc->returnType;
-                // if (retType!=Type::null){
-                //     buffer.push_back(new Instruction(Operand("0", retType == Type::Int ? Type::IntLiteral : Type::FloatLiteral), Operand(), Operand("$ret", retType), retType == Type::Int ? Operator::def : Operator::fdef));
-                // }
                 ir::CallInst *callInst = new ir::CallInst(Operand(funcName, retType), Operand(retVarName, retType));
                 buffer.push_back(callInst);
                 root->t = retType;
             }
             else{
                 Type retType = symbol_table.get_operand_type(funcName, true);
-                // if (retType!=Type::null){
-                //     buffer.push_back(new Instruction(Operand("0", retType == Type::Int ? Type::IntLiteral : Type::FloatLiteral), Operand(), Operand("$ret", retType), retType == Type::Int ? Operator::def : Operator::fdef));
-                // }
                 ir::CallInst* callInst = new ir::CallInst(Operand(funcName, retType), Operand(retVarName, retType));
                 buffer.push_back(callInst);
                 root->t = retType;
             }
         }
         root->v = retVarName;
-        // Instruction callInst = ir::CallInst(函数返回值, 形参列表, Operand());
-        // buffer.push_back(&callInst);
     }
 }
 
@@ -1428,8 +1446,9 @@ void frontend::Analyzer::analysisMulExp(MulExp* root, vector<ir::Instruction*>& 
         // 累计变量的类型转换
         if (TYPE_EQ_INT(root) && TYPE_EQ_F_LTR_PTR(unaryExpNode))
         {
-            root->t = Type::Float;
-            buffer.push_back(new Instruction(Operand(root->v, Type::Int), Operand(), Operand(root->v, Type::Float), Operator::cvt_i2f));
+            Operand cvtDesRoot = castExpectedType(OPERAND_NODE(root), Type::Float, buffer);
+            root->t = cvtDesRoot.type;
+            root->v = cvtDesRoot.name;
         }
         switch (tk.type)
         {
@@ -1466,13 +1485,13 @@ void frontend::Analyzer::analysisRelExp(RelExp* root, vector<ir::Instruction*>& 
     // 构造累积变量
     Type desTargetType = TYPE_EQ_F_LTR_PTR(root) ? Type::Float : Type::Int;
     std::string desTargetName = tem + root->v;
-        // 四种情况
+    // 四种情况
     Operator assignOp = (root->t == Type::IntLiteral && desTargetType == Type::Int) ? Operator::def :
                         (root->t == Type::Int && desTargetType == Type::Int) ? Operator::mov :
                         (root->t == Type::FloatLiteral && desTargetType == Type::Float) ? Operator::fdef : Operator::fmov;
     Operand des(desTargetName, desTargetType);
     buffer.push_back(new Instruction(OPERAND_NODE(root), Operand(), des, assignOp));
-    for (size_t index = 2; index < root->children.size(); index++)
+    for (size_t index = 2; index < root->children.size(); index += 2)
     {
         ANALYSIS(addExp, AddExp, index);
         GET_CHILD_PTR(term, Term, index - 1);
@@ -1501,9 +1520,15 @@ void frontend::Analyzer::analysisRelExp(RelExp* root, vector<ir::Instruction*>& 
             assert(0 && "In frontend::Analyzer::analysisRelExp: Invalid operator type");
             break;
         }
-        TODO;
-        //TODO: 类型检查，考虑字面量的转换！！！
-        Type op2Type = Type::TODO;
+        //先考虑指针的情况
+        cout << "In EqExp: " << des.name<<toString(des.type)<<' '<<addExp->v <<toString(addExp->t)<< endl;
+        Type op2Type = TYPE_EQ_PTR(addExp) ? (addExp->t == Type::IntPtr ? Type::Int : Type::Float) : addExp->t;
+        op2Type = (des.type == Type::Float && op2Type == Type::Int) ? Type::Float :\
+            (des.type == Type::Float && op2Type == Type::IntLiteral) ? Type::FloatLiteral :
+            (des.type == Type::Float && op2Type == Type::FloatLiteral) ? Type::FloatLiteral :
+            (des.type == Type::Float && op2Type == Type::Float) ? Type::Float :
+            (des.type == Type::Int && op2Type == Type::Int) ? Type::Int : Type::IntLiteral;
+        cout << "In EqExp: " << toString(op2Type) << endl;
         Operand op2 = castExpectedType(OPERAND_NODE(addExp), op2Type, buffer);
         buffer.push_back(new Instruction(des, op2, des, opt));
     }
@@ -1522,13 +1547,13 @@ void frontend::Analyzer::analysisEqExp(EqExp* root, vector<ir::Instruction*>& bu
     // 构造累积变量
     Type desTargetType = TYPE_EQ_F_LTR_PTR(root) ? Type::Float : Type::Int;
     std::string desTargetName = tem + root->v;
-        // 四种情况
+    // 四种情况
     Operator assignOp = (root->t == Type::IntLiteral && desTargetType == Type::Int) ? Operator::def :
                         (root->t == Type::Int && desTargetType == Type::Int) ? Operator::mov :
                         (root->t == Type::FloatLiteral && desTargetType == Type::Float) ? Operator::fdef : Operator::fmov;
     Operand des(desTargetName, desTargetType);
     buffer.push_back(new Instruction(OPERAND_NODE(root), Operand(), des, assignOp));
-    for (size_t index = 2; index < root->children.size(); index++)
+    for (size_t index = 2; index < root->children.size(); index += 2)
     {
         ANALYSIS(relExp, RelExp, index);
         GET_CHILD_PTR(term, Term, index - 1);
@@ -1551,7 +1576,11 @@ void frontend::Analyzer::analysisEqExp(EqExp* root, vector<ir::Instruction*>& bu
             break;
         }
         // 这里也可以常数优化，但我欸嘿就是不做，实验4舔到分就算成功
-        Type op2Type = TYPE_EQ_PTR(relExp) ? relExp->t == Type::IntPtr ? Type::Int : Type::Float : relExp->t;
+        Type op2Type = TYPE_EQ_PTR(relExp) ? (relExp->t == Type::IntPtr ? Type::Int : Type::Float) : relExp->t;
+        op2Type = (des.type == Type::Float && op2Type == Type::Int) ? Type::Float :\
+                  (des.type == Type::Float && op2Type == Type::IntLiteral) ? Type::FloatLiteral :
+                  (des.type == Type::Int && op2Type == Type::Int) ? Type::Int : Type::IntLiteral;
+        cout << "In EqExp: " << toString(des.type)<<toString(op2Type) << endl;
         Operand op2 = castExpectedType(OPERAND_NODE(relExp), op2Type, buffer);
 
         buffer.push_back(new Instruction(des, op2, des, opt));
@@ -1567,10 +1596,14 @@ void frontend::Analyzer::analysisLAndExp(LAndExp* root, vector<ir::Instruction*>
     COPY_EXP_NODE(lEqExp, root);
     cout << "LAndExp: " << root->v << ' ' << toString(root->t) << endl;
     if (root->children.size() == 3){
-        buffer.push_back(new Instruction(OPERAND_NODE(lEqExp), Operand(), Operand(tem + root->v, root->t), Operator::mov));
-        buffer.push_back(new Instruction(Operand(tem + root->v, root->t), Operand(), Operand("2", Type::IntLiteral), Operator::_goto));
-        int prevBufferSize = buffer.size();
+        // 注意这里就要转换为整型变量更好，且上来的数没有指针（在RelExp被处理掉了）
+        Type rootCvtType = TYPE_EQ_LITERAL(lEqExp) ? Type::IntLiteral : Type::Int;
+        Operand rootCvtOpd = castExpectedType(OPERAND_NODE(lEqExp), rootCvtType, buffer);
+        Operator op = rootCvtType == Type::IntLiteral ? Operator::def : Operator::mov;
+        buffer.push_back(new Instruction(rootCvtOpd, Operand(), Operand(tem + root->v, Type::Int), op));
+        buffer.push_back(new Instruction(Operand(tem + root->v, Type::Int), Operand(), Operand("2", Type::IntLiteral), Operator::_goto));
         // 短路运算
+        int prevBufferSize = buffer.size();
         Instruction *inst = new Instruction(Operand(), Operand(), Operand("0", Type::IntLiteral), Operator::_goto);
         buffer.push_back(inst);
         ANALYSIS(lAndExp, LAndExp, 2);
@@ -1589,8 +1622,8 @@ void frontend::Analyzer::analysisLAndExp(LAndExp* root, vector<ir::Instruction*>
 // 这个函数主要处理相当恶心的类型转换，而且尽量减少IR的数量
 // 职责：根据cumVar的类型，对upVar做类型转换（float，int以及各种literal和ptr），并添加相应IR指令
 void frontend::Analyzer::cumulativeComputing(Operand cumVar, Operand upVar, Operator opt, vector<ir::Instruction*>& buffer){
-#define TEM_PTR_VAR "$P2V"
     // 处理opt
+    cout << "Im cumulative comp: " << toString(cumVar.type) << ' ' << cumVar.name << ' ' << toString(upVar.type) << ' '<<upVar.name << endl;
     switch (opt)
     {
     // fxx, xx, xxi
@@ -1601,14 +1634,14 @@ void frontend::Analyzer::cumulativeComputing(Operand cumVar, Operand upVar, Oper
         switch (upVar.type)
         {
         case ir::Type::IntLiteral:
-            opt = Operator::addi;           // 为什么有这种。。
+            opt = cumVar.type == Type::Float ? Operator::fadd : Operator::addi;
             break;
         case ir::Type::FloatLiteral:
         case ir::Type::Float:
             opt = Operator::fadd;
             break;
         default:
-            opt = Operator::add;
+            opt = cumVar.type == Type::Float ? Operator::fadd : Operator::add;
             break;
         }
         break;
@@ -1618,14 +1651,14 @@ void frontend::Analyzer::cumulativeComputing(Operand cumVar, Operand upVar, Oper
         switch (upVar.type)
         {
         case ir::Type::IntLiteral:
-            opt = Operator::subi;
+            opt = cumVar.type == Type::Float ? Operator::fsub :Operator::subi;
             break;
         case ir::Type::FloatLiteral:
         case ir::Type::Float:
             opt = Operator::fsub;
             break;
         default:
-            opt = Operator::sub;
+            opt = cumVar.type == Type::Float ? Operator::fsub : Operator::sub;
             break;
         }
         break;
@@ -1638,7 +1671,7 @@ void frontend::Analyzer::cumulativeComputing(Operand cumVar, Operand upVar, Oper
             opt = Operator::fmul;
             break;
         default:
-            opt = Operator::mul;
+            opt = cumVar.type == Type::Float ? Operator::fmul : Operator::mul;
             break;
         }
         break;
@@ -1651,7 +1684,7 @@ void frontend::Analyzer::cumulativeComputing(Operand cumVar, Operand upVar, Oper
             opt = Operator::fdiv;
             break;
         default:
-            opt = Operator::div;
+            opt = cumVar.type == Type::Float ? Operator::fdiv : Operator::div;
             break;
         }
         break;
@@ -1660,19 +1693,15 @@ void frontend::Analyzer::cumulativeComputing(Operand cumVar, Operand upVar, Oper
         break;
     }
     // 处理要来的变量，主要是指针
-    bool isPtr = false;
-    Operand tempPtrVar;
-    if (upVar.type == Type::FloatPtr || upVar.type == Type::IntPtr){
-        isPtr = true;
-        tempPtrVar.name = TEM_PTR_VAR;
-        tempPtrVar.type = upVar.type == Type::IntPtr ? Type::Int : Type::Float;
-        buffer.push_back(new Instruction(upVar, Operand("0", Type::IntLiteral), tempPtrVar, Operator::load));
-    }
-    Operand finalOpt;
-    finalOpt.name = isPtr ? tempPtrVar.name : upVar.name;
-    finalOpt.type = isPtr ? tempPtrVar.type : upVar.type;
+    Type op2DesType = (upVar.type == Type::FloatPtr) ? Type::Float : \
+                      (upVar.type == Type::IntPtr) ? Type::Int : \
+                      (upVar.type == Type::IntLiteral) ? (cumVar.type == Type::Float ? Type::FloatLiteral : Type::IntLiteral) :\
+                      (upVar.type == Type::FloatLiteral) ? Type::FloatLiteral : \
+                      (upVar.type == Type::Int) ? (cumVar.type ==Type::Int ? Type::Int : Type::Float) : \
+                      (upVar.type == Type::Float) ? Type::Float : Type::null;
+    assert(op2DesType != Type::null && "Null Type is not Expected!");
+    Operand finalOpt = castExpectedType(upVar, op2DesType, buffer);
     buffer.push_back(new Instruction(cumVar, finalOpt, cumVar, opt));
-#undef TEM_F_VAR
 }
 
 // 搞了半天，发现这个函数十分有必要：将某个Operand转换为期望类型
@@ -1700,53 +1729,58 @@ Operand frontend::Analyzer::castExpectedType(Operand operand, Type tp, vector<ir
     assert((Type::Int == tp || Type::Float == tp) && "In frontend::Analyzer::castExpectedType: unexpected target type!!!");
     const std::string prefix = "$cst";
     std::string srcVarName = operand.name;
-    std::string srcTarName = prefix + operand.name;
+    std::string srcTargetName = prefix + operand.name;
+// 处理字面量
     if (operand.type == Type::IntLiteral){  // IntLiteral -> Int | Float
-        Operand retOpe(srcTarName, tp);
-        if (tp == Type::Float){
+        Operand retOpe(srcTargetName, tp);
+        if (tp == Type::Float){     // IntLiteral -> Float
             buffer.push_back(new Instruction(operand, Operand(), retOpe, Operator::cvt_i2f));
         }
-        else{
+        else{       // IntLiteral -> Int
             buffer.push_back(new Instruction(operand, Operand(), retOpe, Operator::def));
         }
         return retOpe;
     }
     else if(operand.type == Type::FloatLiteral){    // FloatLiteral -> Int | Float
-        Operand retOpe(srcTarName, tp);
-        if (tp == Type::Int){
+        Operand retOpe(srcTargetName, tp);
+        if (tp == Type::Int){       // FloatLiteral -> Int 
             buffer.push_back(new Instruction(operand, Operand(), retOpe, Operator::cvt_f2i));
         }
-        else{
+        else{              // FloatLiteral -> Float
             buffer.push_back(new Instruction(operand, Operand(), retOpe, Operator::fdef));
         }
         return retOpe;
 
     }
-    // load ptr
+// 先处理指针，注意后面还会处理
     if (operand.type == Type::IntPtr){      // IntPtr -> Int        des是要读到哪里去
-        Operand targetOperand(srcTarName, Type::Int);
+        Operand targetOperand(srcTargetName, Type::Int);
         Operand base("0", Type::IntLiteral);
         buffer.push_back(new Instruction(operand, base, targetOperand, Operator::load));
-        operand.name = srcTarName;
+        operand.name = srcTargetName;
         operand.type = Type::Int;
     }
     else if (operand.type == Type::FloatPtr){   // FloatPtr -> Float
-        Operand targetOperand(srcTarName, Type::Float);
+        Operand targetOperand(srcTargetName, Type::Float);
         Operand base("0", Type::IntLiteral);
         buffer.push_back(new Instruction(operand, base, targetOperand, Operator::load));
-        operand.name = srcTarName;
+        operand.name = srcTargetName;
         operand.type = Type::Float;
     }
-    // consider convert Var->Var
-    if (operand.type == tp){        // FloatPtr->Float == Float, Int is the same, namely equal type
+// 再次判断
+    if (operand.type == tp){
         return operand;
     }
+// 处理普通变量转换
     operand.type = tp;
-    if (tp == Type::Int){
-        buffer.push_back(new Instruction(Operand(operand.name, Type::Float), Operand(), operand, Operator::cvt_f2i));
+    srcTargetName = prefix + srcTargetName;
+    if (tp == Type::Int){   // target is Int
+        buffer.push_back(new Instruction(Operand(operand.name, Type::Float), Operand(), Operand(srcTargetName, Type::Int), Operator::cvt_f2i));
+        operand.name = srcTargetName;
     }
     else{
-        buffer.push_back(new Instruction(Operand(operand.name, Type::Int), Operand(), operand, Operator::cvt_i2f));
+        buffer.push_back(new Instruction(Operand(operand.name, Type::Int), Operand(), Operand(srcTargetName, Type::Float), Operator::cvt_i2f));
+        operand.name = srcTargetName;
     }
     return operand;
 }
