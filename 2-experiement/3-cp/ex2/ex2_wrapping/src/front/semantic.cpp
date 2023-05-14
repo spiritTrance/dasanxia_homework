@@ -124,11 +124,11 @@ void frontend::SymbolTable::add_scope_const_entry(ir::Type tp, std::string ident
     // 注意处理截断逻辑
     if (tp == Type::IntLiteral){
         // 注意value可能是浮点数
-        scope_stack[index].table[scopeName].operand.name = std::to_string(frontend::evalInt(value));   // 赋值
+        scope_stack[index].table[scopeName].operand.name = value;   // 赋值
     }
     else{
         // 注意value可能是整数
-        scope_stack[index].table[scopeName].operand.name = std::to_string(frontend::evalFloat(value));   // 赋值
+        scope_stack[index].table[scopeName].operand.name = value;   // 赋值
     }
 }
 
@@ -387,6 +387,7 @@ void frontend::Analyzer::analysisConstDef(ConstDef* root, vector<ir::Instruction
         symbol_table.add_scope_entry(tp, sVarName, dim);   // 加入符号表
         ANALYSIS(constInitVal, ConstInitVal, 2);
         assert(TYPE_EQ_LITERAL(constInitVal) && "Not a Literal!");
+        // cout << "In ConstDef: " << constInitVal->v << endl;
         symbol_table.add_scope_const_entry(tp == Type::Int ? Type::IntLiteral : Type::FloatLiteral, sVarName, constInitVal->v);   // 加入符号表
         return;
     }
@@ -433,7 +434,8 @@ void frontend::Analyzer::analysisConstInitVal(ConstInitVal* root, vector<ir::Ins
         STE arrSte = symbol_table.get_ste(arrName);
         Type tp = arrSte.operand.type;
         std::string arrScopedName = arrSte.operand.name;
-        if (tp == Type::IntPtr || tp == Type::FloatPtr){        // 数组赋值，根据SysY文档，不可能出现{{1,2},{3,4}}的情况
+        // 数组赋值，根据SysY文档，不可能出现{{1,2},{3,4}}的情况
+        if (tp == Type::IntPtr || tp == Type::FloatPtr){        
             vector<int> dim = symbol_table.get_ste(arrName).dimension;
             int sz = 1;
             for (int i: dim){
@@ -602,7 +604,7 @@ void frontend::Analyzer::analysisVarDef(VarDef* root, vector<ir::Instruction*>& 
             int val = std::stoi(constExp->v);
             vector<int> dim = {val};
             std::string arr_scopedName = symbol_table.get_scoped_name(sVarName);
-            if (symbol_table.getCurrScopeName() != "GLOBAL_SCOPE_NAME"){
+            if (symbol_table.getCurrScopeName() != GLOBAL_SCOPE_NAME){
                 buffer.push_back(new Instruction(OPERAND_NODE(constExp), Operand(), Operand(arr_scopedName, tp), Operator::alloc));
                 for (int i = 0; i < val;i++){
                     buffer.push_back(new Instruction(Operand(arr_scopedName, tp), Operand(std::to_string(i), Type::IntLiteral), Operand(zero_varName, zero_Vartype), Operator::store));
@@ -620,7 +622,7 @@ void frontend::Analyzer::analysisVarDef(VarDef* root, vector<ir::Instruction*>& 
             vector<int> dim = {val_1, val_2};
             int tot = val_1 * val_2;
             std::string arr_scopedName = symbol_table.get_scoped_name(sVarName);
-            if (symbol_table.getCurrScopeName() != "GLOBAL_SCOPE_NAME"){
+            if (symbol_table.getCurrScopeName() != GLOBAL_SCOPE_NAME){
                 buffer.push_back(new Instruction(Operand(std::to_string(tot), Type::IntLiteral), Operand(), Operand(arr_scopedName, tp), Operator::alloc));
                 for (int i = 0; i < tot;i++){
                     buffer.push_back(new Instruction(Operand(arr_scopedName, tp), Operand(std::to_string(i), Type::IntLiteral), Operand(zero_varName, zero_Vartype), Operator::store));
@@ -1423,6 +1425,7 @@ void frontend::Analyzer::analysisMulExp(MulExp* root, vector<ir::Instruction*>& 
                 buffer.push_back(new Instruction(OPERAND_NODE(unaryExpNode_0), Operand(), OPERAND_NODE(root), Operator::def));
             }
             else{
+                cout << "In MulExp: " << unaryExpNode_0->v<<endl;
                 buffer.push_back(new Instruction(OPERAND_NODE(unaryExpNode_0), Operand(), OPERAND_NODE(root), Operator::fdef));
             }
         }
@@ -1623,7 +1626,7 @@ void frontend::Analyzer::analysisLAndExp(LAndExp* root, vector<ir::Instruction*>
 // 职责：根据cumVar的类型，对upVar做类型转换（float，int以及各种literal和ptr），并添加相应IR指令
 void frontend::Analyzer::cumulativeComputing(Operand cumVar, Operand upVar, Operator opt, vector<ir::Instruction*>& buffer){
     // 处理opt
-    cout << "Im cumulative comp: " << toString(cumVar.type) << ' ' << cumVar.name << ' ' << toString(upVar.type) << ' '<<upVar.name << endl;
+    // cout << "Im cumulative comp: " << toString(cumVar.type) << ' ' << cumVar.name << ' ' << toString(upVar.type) << ' '<<upVar.name << endl;
     switch (opt)
     {
     // fxx, xx, xxi
@@ -1715,7 +1718,7 @@ void frontend::Analyzer::cumulativeComputing(Operand cumVar, Operand upVar, Oper
 // 步骤3：判断指针，读取出来，不return，operand变量变成var，注意ir指令压的啥
 // 步骤4：判断var的类型转换
 Operand frontend::Analyzer::castExpectedType(Operand operand, Type tp, vector<ir::Instruction*>& buffer){
-    cout << "In cast checker: " << operand.name << ' ' << toString(operand.type) <<' '<<toString(tp)<< endl;
+    // cout << "In cast checker: " << operand.name << ' ' << toString(operand.type) <<' '<<toString(tp)<< endl;
     if (operand.type == tp){
         return operand;
     }
@@ -1747,10 +1750,10 @@ Operand frontend::Analyzer::castExpectedType(Operand operand, Type tp, vector<ir
             buffer.push_back(new Instruction(operand, Operand(), retOpe, Operator::cvt_f2i));
         }
         else{              // FloatLiteral -> Float
+            cout << "In cast check: " << operand.name << endl;
             buffer.push_back(new Instruction(operand, Operand(), retOpe, Operator::fdef));
         }
         return retOpe;
-
     }
 // 先处理指针，注意后面还会处理
     if (operand.type == Type::IntPtr){      // IntPtr -> Int        des是要读到哪里去
