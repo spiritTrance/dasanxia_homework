@@ -37,15 +37,15 @@ enum class TokenType{
     MINU,		// -
     MULT,		// *
     DIV,		// /
-    MOD,      // %
+    MOD,        // %
     LSS,		// <
     GTR,		// >
     COLON,		// :
     ASSIGN,		// =
     SEMICN,		// ;
     COMMA,		// ,
-    LPARENT,		// (
-    RPARENT,		// )
+    LPARENT,	// (
+    RPARENT,	// )
     LBRACK,		// [
     RBRACK,		// ]
     LBRACE,		// {
@@ -65,6 +65,7 @@ struct Token {
     std::string value;
 };
 
+TokenType stringToTokenType(std::string s);
 
 } // namespace frontend
 

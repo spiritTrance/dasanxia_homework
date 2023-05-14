@@ -20,6 +20,7 @@
 #define LEXICAL_H
 
 #include"front/token.h"
+#include"front/auxiliary_function.h"
 
 #include<set>
 #include<vector>
@@ -48,12 +49,10 @@ struct DFA {
      * @brief constructor, set the init state to State::Empty
      */
     DFA();
-    
     /**
      * @brief destructor
      */
     ~DFA();
-    
     // the meaning of copy and assignment for a DFA is not clear, so we do not allow them
     DFA(const DFA&) = delete;   // copy constructor
     DFA& operator=(const DFA&) = delete;    // assignment
@@ -66,6 +65,13 @@ struct DFA {
      */
     bool next(char input, Token& buf);
 
+    bool emptyStateProcess(char input, Token &buf);
+    bool intLiteralStateProcess(char input, Token &buf);
+    bool floatLiteralStateProcess(char input, Token &buf);
+    bool operatorStateProcess(char input, Token &buf);
+    bool identityStateProcess(char input, Token &buf);
+
+    bool flush(frontend::Token& tk);
     /**
      * @brief reset the DFA state to begin
      */
@@ -98,6 +104,12 @@ struct Scanner {
      * @return std::vector<Token>: the result token stream
      */
     std::vector<Token> run();
+
+    /**
+     * @brief remove all the comments in source file 
+     * @return a file string
+     */
+    std::string removeComments(std::ifstream& fin);
 
 private:
     std::ifstream fin;  // the input file
