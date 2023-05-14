@@ -589,9 +589,9 @@ void frontend::Analyzer::analysisVarDef(VarDef* root, vector<ir::Instruction*>& 
         }
         tp = tp == Type::Int ? Type::IntPtr : Type::FloatPtr;
         // 初始化参数
-        const std::string zero_varName = "tem0";
         const Type zero_Literaltype = tp == Type::IntPtr ? Type::IntLiteral : Type::FloatLiteral;
         const Type zero_Vartype = tp == Type::IntPtr ? Type::Int : Type::Float;
+        const std::string zero_varName = zero_Vartype == Type::Int ? "$tem0" : "$ftem0";
         const Operator opr = tp == Type::IntPtr ? Operator::def : Operator::fdef;
         buffer.push_back(new Instruction(Operand("0", zero_Literaltype), Operand(), Operand(zero_varName, zero_Vartype), opr));
         // 一维数组
@@ -855,7 +855,7 @@ void frontend::Analyzer::analysisStmt(Stmt* root, vector<ir::Instruction*>& buff
                     inst_else->des.name = std::to_string(offsetSize + 1);   // 如果只有if，现在多了else，那么if结尾要跳过else，但if不满足时，只有if就会跳到这个地方，所以要加1
                 }
                 else{
-                    buffer.push_back(new Instruction(Operand(), Operand(), Operand(), Operator::__unuse__));
+                    // buffer.push_back(new Instruction(Operand(), Operand(), Operand(), Operator::__unuse__));
                 }
             }
             break;
@@ -899,7 +899,7 @@ void frontend::Analyzer::analysisStmt(Stmt* root, vector<ir::Instruction*>& buff
                     jump_eow.clear();
                 }
                 // 加入nop
-                buffer.push_back(new Instruction(Operand(), Operand(), Operand(), Operator::__unuse__));
+                // buffer.push_back(new Instruction(Operand(), Operand(), Operand(), Operator::__unuse__));
             }
             break;
         // Stmt -> 'break' ';'
