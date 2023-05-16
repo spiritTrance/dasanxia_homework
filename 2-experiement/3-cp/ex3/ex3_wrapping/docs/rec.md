@@ -7,6 +7,15 @@ docker attach cpEx;
 ```
 
 ```bash
+cd ../cppTest; riscv32-unknown-linux-gnu-gcc test.cpp -S
+riscv32-unknown-linux-gnu-gcc test.s ../test/sylib-riscv-linux.a -o test.exe
+qemu-riscv32.sh test.exe
+cd ../cppTest; riscv32-unknown-linux-gnu-gcc test.cpp -S; riscv32-unknown-linux-gnu-gcc test.s ../test/sylib-riscv-linux.a -o test.exe; qemu-riscv32.sh test.exe; echo $?
+cd ../cppTest; riscv32-unknown-linux-gnu-gcc test.s ../test/sylib-riscv-linux.a -o test.exe; qemu-riscv32.sh test.exe; echo $?
+```
+
+
+```bash
 cd ../bin; ./compiler ../test/testcase/basic/03_arr_defn2.sy -s2 -o test.txt
 cd ../bin; ./compiler ../test/testcase/basic/03_arr_defn2.sy -e -o _test.txt
 cd ../test; python3 run.py s2; python3 score.py s2
@@ -17,6 +26,8 @@ cd ../bin; ./compiler ../test/testcase/function/79_var_name.sy -s2 -o test.txt
 cd ../bin; ./compiler ../test/testcase/function/79_var_name.sy -e -o test_.txt
 ```
 
+
+
 修改命令行颜色
 ```bash
 cd ~;
@@ -26,8 +37,9 @@ source ~/.bashrc;
 PS1='\[\e[1;35m\]\u@\h:\[\e[0m\]\[\e[1;33m\]\w\[\e[1;35m\]\[\e[0m\]\[\e[1;34m\]\$\[\e[0m\]'
 PS1='\[\e[1;31m\]\u@\h:\[\e[0m\]\[\e[1;33m\]\w\[\e[1;35m\]\[\e[0m\]\[\e[1;34m\]\$\[\e[0m\]'
 PS1="\[\033[1;36;01m\]\u\[\033[00m\]\[\033[1;34;01m\]@\[\033[00m\]\[\033[1;32;01m\]\h\[\033[00m\]\[\033[34;01m\]:\[\033[00m\]\[\033[33;01m\]\w\[\033[00m\]\[\033[31;01m\] \$\[\033[37;00m\] "
-PS1="\[\033[1;36;01m\]\u\[\033[00m\]\[\033[1;36;01m\]@\[\033[00m\]\[\033[1;36;01m\]\h\[\033[00m\]\[\033[34;01m\]:\[\033[00m\]\[\033[33;01m\]\w\[\033[00m\]\[\033[35;01m\] \n>>>\[\033[37;00m\] "
+PS1="\[\033[34;01m\][\[\033[1;34;01m\]\u\[\033[00m\]\[\033[1;32;01m\]@\[\033[00m\]\[\033[1;34;01m\]\h\[\033[00m\]\[\033[34;01m\]] \[\033[00m\]\[\033[33;01m\]\w\[\033[00m\]\[\033[35;01m\] \n>>>\[\033[37;00m\] "
 PS1="\[\033[00m\]\[\033[33;01m\]\w\[\033[00m\]\[\033[35;01m\] >>>\[\033[37;00m\] "
+PS1="\[\033[35;01m\] >>>\[\033[37;00m\] "
 ```
 常用的颜色为 红色31、绿色32、黄色33、蓝色34、紫红色35、青蓝色36、白色37。颜色右边的“01m"代表字体是否加粗。更详细的内容可以进第一个参考资料查看。
 (在hacker dark theme下)

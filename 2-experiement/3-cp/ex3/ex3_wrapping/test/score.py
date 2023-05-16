@@ -101,7 +101,6 @@ def score_compiler(arg1):
                 for file in files:
                     if not (file[-2:] == ".s"):
                         continue
-
                     # gcc
                     fname, ftype = file.split('.')
                     ref_file = ref_dir + fname + ".out"
@@ -112,7 +111,7 @@ def score_compiler(arg1):
                     if not os.path.exists(exec_file):
                         record[file] = {"retval": -1, "err_detail": "executing cmd [" + cmd + "] failed, your assmbly can not produce a executable"}
                         continue
-                
+                    
                     # qemu 
                     cmd = ' '.join(["qemu-riscv32.sh", exec_file])
                     input_file = testcase_dir + fname + ".in"

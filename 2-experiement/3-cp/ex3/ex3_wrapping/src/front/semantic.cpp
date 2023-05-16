@@ -999,7 +999,7 @@ void frontend::Analyzer::analysisLVal(LVal* root, vector<ir::Instruction*>& buff
     Operand arrOperand = symbol_table.get_operand(tk.value);
     root->v = arrOperand.name;
     root->t = arrOperand.type;
-    if (root->children.size() == 1){        // Var，可能是字面量
+    if (root->children.size() == 1){        // Var，可能是字面，hhh，也可能是value哒！
         if (root->t == Type::IntLiteral || root->t == Type::FloatLiteral){
             root->is_computable = true;
         }

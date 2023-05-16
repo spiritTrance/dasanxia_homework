@@ -128,7 +128,7 @@ int ir::Executor::run() {
             if (gte.val.type == Type::IntPtr) {
                 entry.second._val.iptr = new int[gte.maxlen];
                 // global variable need to init as 0
-                for (size_t i = 0; i < gte.maxlen; i++) {
+                for (int i = 0; i < gte.maxlen; i++) {
                     entry.second._val.iptr[i] = 0;
                 }
                 
@@ -136,7 +136,7 @@ int ir::Executor::run() {
             else if (gte.val.type == Type::FloatPtr) {
                 entry.second._val.fptr = new float[gte.maxlen];
                 // global variable need to init as 0
-                for (size_t i = 0; i < gte.maxlen; i++) {
+                for (int i = 0; i < gte.maxlen; i++) {
                     entry.second._val.fptr[i] = 0;
                 }
             }

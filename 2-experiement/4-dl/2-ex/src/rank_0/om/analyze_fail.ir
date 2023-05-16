@@ -1,0 +1,285 @@
+# 1.This file shows the parsed IR info when graph evaluating failed to help find the problem.
+# 2.You can search the last `------------------------>` to the node which is inferred failed.
+# 3.Refer to https://www.mindspore.cn/search?inputValue=analyze_fail.ir to get more instructions.
+# ===============================================================================
+
+subgraph attr:
+training : 1
+subgraph instance: construct.Default.129 : 000001A091F83290
+# In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:385/    def construct(self, *inputs):/
+subgraph @construct.Default.129(%para1_inputs0, %para2_inputs1, %para3_conv1.weight, %para4_conv2.weight, %para5_conv3.weight, %para6_fc1.weight, %para7_fc1.bias, %para8_bn.gamma, %para9_bn.beta, %para10_fc2.weight, %para11_fc2.bias, %para12_moment1.conv1.weight, %para13_moment1.conv2.weight, %para14_moment1.conv3.weight, %para15_moment1.fc1.weight, %para16_moment1.fc1.bias, %para17_moment1.bn.gamma, %para18_moment1.bn.beta, %para19_moment1.fc2.weight, %para20_moment1.fc2.bias, %para21_moment2.conv1.weight, %para22_moment2.conv2.weight, %para23_moment2.conv3.weight, %para24_moment2.fc1.weight, %para25_moment2.fc1.bias, %para26_moment2.bn.gamma, %para27_moment2.bn.beta, %para28_moment2.fc2.weight, %para29_moment2.fc2.bias, %para30_beta1_power, %para31_beta2_power, %para32_learning_rate, %para33_global_step, %para34_bn.moving_mean, %para35_bn.moving_variance) {
+  %1([CNode]136) = MakeTuple[is_dynamic_len=Bool(0)](%para1_inputs0, %para2_inputs1)
+      : (<Tensor[Float32], (64, 1, 28, 28)>, <Tensor[Int32], (64)>) -> (<Tuple[Tensor[Float32],Tensor[Int32]], TupleShape((64, 1, 28, 28), (64))>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:385/    def construct(self, *inputs):/
+
+#------------------------> 0
+  %2(loss) = UnpackCall-unpack_call(call @construct.WithLossCell.133, %1)
+      : (<Func, NoShape>, <Tuple[Tensor[Float32],Tensor[Int32]], TupleShape((64, 1, 28, 28), (64))>) -> (<null>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:386/        loss = self.network(*inputs)/
+  %3([CNode]137) = getattr(%2, "dtype")
+      : (<null>, <null>) -> (<null>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:387/        sens = F.fill(loss.dtype, loss.shape, self.sens)/
+  %4([CNode]138) = getattr(%2, "shape")
+      : (<null>, <null>) -> (<null>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:387/        sens = F.fill(loss.dtype, loss.shape, self.sens)/
+  %5(sens) = call @fill.139(%3, %4, F32(1))
+      : (<null>, <null>, <null>) -> (<null>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:387/        sens = F.fill(loss.dtype, loss.shape, self.sens)/
+  %6([CNode]140) = S-Prim-MakeTuple[is_dynamic_len=Bool(0)](%5)
+      : (<null>) -> (<null>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:388/        grads = self.grad(self.network, self.weights)(*inputs, sens)/
+  %7(grads) = UnpackGraph(call @construct.WithLossCell.133, %1, %6)
+      : (<null>, <Tuple[Tensor[Float32],Tensor[Int32]], TupleShape((64, 1, 28, 28), (64))>, <null>) -> (<null>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:388/        grads = self.grad(self.network, self.weights)(*inputs, sens)/
+  %8([CNode]141) = MakeTuple[is_dynamic_len=Bool(0)](%para3_conv1.weight, %para4_conv2.weight, %para5_conv3.weight, %para6_fc1.weight, %para7_fc1.bias, %para8_bn.gamma, %para9_bn.beta, %para10_fc2.weight, %para11_fc2.bias)
+      : (<Ref[Tensor[Float32]], (32, 1, 3, 3)>, <Ref[Tensor[Float32]], (64, 32, 3, 3)>, <Ref[Tensor[Float32]], (128, 64, 3, 3)>, <Ref[Tensor[Float32]], (128, 3200)>, <Ref[Tensor[Float32]], (128)>, <Ref[Tensor[Float32]], (128)>, <Ref[Tensor[Float32]], (128)>, <Ref[Tensor[Float32]], (10, 128)>, <Ref[Tensor[Float32]], (10)>) -> (<null>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:388/        grads = self.grad(self.network, self.weights)(*inputs, sens)/
+  %9(grads) = S-Prim-grad(%7, %8)
+      : (<null>, <null>) -> (<null>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:388/        grads = self.grad(self.network, self.weights)(*inputs, sens)/
+  %10(grads) = UnpackCall-unpack_call(%9, %1, %6)
+      : (<null>, <Tuple[Tensor[Float32],Tensor[Int32]], TupleShape((64, 1, 28, 28), (64))>, <null>) -> (<null>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:388/        grads = self.grad(self.network, self.weights)(*inputs, sens)/
+  %11(grads) = S-Prim-identity[side_effect_propagate=I64(1)](%10)
+      : (<null>) -> (<null>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:389/        grads = self.grad_reducer(grads)/
+  %12([CNode]143) = call @construct.Adam.142(%11)
+      : (<null>) -> (<null>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:390/        loss = F.depend(loss, self.optimizer(grads))/
+  %13(loss) = S-Prim-Depend[side_effect_propagate=I64(1)](%2, %12)
+      : (<null>, <null>) -> (<null>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:390/        loss = F.depend(loss, self.optimizer(grads))/
+  Return(%13)
+      : (<null>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:391/        return loss/
+}
+# order:
+#   1: @construct.Default.129:loss{[0]: ValueNode<UnpackCall> MetaFuncGraph-unpack_call.144, [1]: ValueNode<FuncGraph> construct.WithLossCell.133, [2]: [CNode]136}
+#   2: @construct.Default.129:[CNode]137{[0]: ValueNode<Primitive> getattr, [1]: loss, [2]: ValueNode<StringImm> dtype}
+#   3: @construct.Default.129:[CNode]138{[0]: ValueNode<Primitive> getattr, [1]: loss, [2]: ValueNode<StringImm> shape}
+#   4: @construct.Default.129:sens{[0]: ValueNode<FuncGraph> fill.139, [1]: [CNode]137, [2]: [CNode]138, [3]: ValueNode<FP32Imm> 1}
+#   5: @construct.Default.129:[CNode]140{[0]: ValueNode<DoSignaturePrimitive> S-Prim-MakeTuple, [1]: sens}
+#   6: @construct.Default.129:grads{[0]: ValueNode<UnpackGraphPrimitive> UnpackGraph, [1]: ValueNode<FuncGraph> construct.WithLossCell.133, [2]: [CNode]136, [3]: [CNode]140}
+#   7: @construct.Default.129:grads{[0]: ValueNode<DoSignaturePrimitive> S-Prim-grad, [1]: grads, [2]: [CNode]141}
+#   8: @construct.Default.129:grads{[0]: ValueNode<UnpackCall> MetaFuncGraph-unpack_call.145, [1]: grads, [2]: [CNode]136, [3]: [CNode]140}
+#   9: @construct.Default.129:grads{[0]: ValueNode<DoSignaturePrimitive> S-Prim-identity, [1]: grads}
+#  10: @construct.Default.129:[CNode]143{[0]: ValueNode<FuncGraph> construct.Adam.142, [1]: grads}
+#  11: @construct.Default.129:loss{[0]: ValueNode<DoSignaturePrimitive> S-Prim-Depend, [1]: loss, [2]: [CNode]143}
+#  12: @construct.Default.129:[CNode]146{[0]: ValueNode<Primitive> Return, [1]: loss}
+
+
+subgraph attr:
+core : 1
+subgraph instance: UnpackCall.130 : 000001A0922F08D0
+# In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:386/        loss = self.network(*inputs)/
+subgraph @UnpackCall.130(%para36_, %para37_) {
+  %1(loss) = TupleGetItem(%para37_132, I64(0))
+      : (<Tuple[Tensor[Float32],Tensor[Int32]], TupleShape((64, 1, 28, 28), (64))>, <Int64, NoShape>) -> (<Tensor[Float32], (64, 1, 28, 28)>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:386/        loss = self.network(*inputs)/
+  %2(loss) = TupleGetItem(%para37_132, I64(1))
+      : (<Tuple[Tensor[Float32],Tensor[Int32]], TupleShape((64, 1, 28, 28), (64))>, <Int64, NoShape>) -> (<Tensor[Int32], (64)>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:386/        loss = self.network(*inputs)/
+
+#------------------------> 1
+  %3(loss) = %para36_131(%1, %2)
+      : (<Tensor[Float32], (64, 1, 28, 28)>, <Tensor[Int32], (64)>) -> (<null>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:386/        loss = self.network(*inputs)/
+  Return(%3)
+      : (<null>)
+      #scope: (Default)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:386/        loss = self.network(*inputs)/
+}
+# order:
+#   1: @UnpackCall.130:loss{[0]: 131, [1]: loss, [2]: loss}
+#   2: @UnpackCall.130:loss{[0]: ValueNode<Primitive> Return, [1]: loss}
+
+
+subgraph attr:
+training : 1
+subgraph instance: construct.WithLossCell.133 : 000001A091F6B960
+# In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:116/    def construct(self, data, label):/
+subgraph @construct.WithLossCell.133 parent: [subgraph @construct.Default.129](%para38_data, %para39_label) {
+
+#------------------------> 2
+  %1(out) = call @construct.ForwardFashionWithBatchNorm.134(%para38_data)
+      : (<Tensor[Float32], (64, 1, 28, 28)>) -> (<null>)
+      #scope: (Default/network-WithLossCell)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:117/        out = self._backbone(data)/
+  %2([CNode]148) = call @construct.SoftmaxCrossEntropyWithLogits.147(%1, %para39_label)
+      : (<null>, <Tensor[Int32], (64)>) -> (<null>)
+      #scope: (Default/network-WithLossCell)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:118/        return self._loss_fn(out, label)/
+  Return(%2)
+      : (<null>)
+      #scope: (Default/network-WithLossCell)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\wrap\cell_wrapper.py:118/        return self._loss_fn(out, label)/
+}
+# order:
+#   1: @construct.WithLossCell.133:out{[0]: ValueNode<FuncGraph> construct.ForwardFashionWithBatchNorm.134, [1]: data}
+#   2: @construct.WithLossCell.133:[CNode]148{[0]: ValueNode<FuncGraph> construct.SoftmaxCrossEntropyWithLogits.147, [1]: out, [2]: label}
+#   3: @construct.WithLossCell.133:[CNode]149{[0]: ValueNode<Primitive> Return, [1]: [CNode]148}
+
+
+subgraph attr:
+training : 1
+subgraph instance: construct.ForwardFashionWithBatchNorm.134 : 000001A091F69ED0
+# In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:16/
+subgraph @construct.ForwardFashionWithBatchNorm.134 parent: [subgraph @construct.Default.129](%para40_x) {
+  %1(x) = call @construct.Conv2d.150(%para40_x)
+      : (<Tensor[Float32], (64, 1, 28, 28)>) -> (<Tensor[Float32], (64, 32, 26, 26)>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:17/
+  %2(x) = call @construct.ReLU.151(%1)
+      : (<Tensor[Float32], (64, 32, 26, 26)>) -> (<Tensor[Float32], (64, 32, 26, 26)>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:18/
+  %3(x) = call @construct.Conv2d.152(%2)
+      : (<Tensor[Float32], (64, 32, 26, 26)>) -> (<Tensor[Float32], (64, 64, 24, 24)>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:19/
+  %4(x) = call @construct.ReLU.151(%3)
+      : (<Tensor[Float32], (64, 64, 24, 24)>) -> (<Tensor[Float32], (64, 64, 24, 24)>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:20/
+  %5(x) = call @construct.MaxPool2d.153(%4)
+      : (<Tensor[Float32], (64, 64, 24, 24)>) -> (<Tensor[Float32], (64, 64, 12, 12)>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:21/
+
+#------------------------> 3
+  %6(x) = call @construct.BatchNorm1d.135(%5)
+      : (<Tensor[Float32], (64, 64, 12, 12)>) -> (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:22/
+  %7(x) = call @construct.Conv2d.154(%6)
+      : (<null>) -> (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:23/
+  %8(x) = call @construct.ReLU.151(%7)
+      : (<null>) -> (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:24/
+  %9(x) = call @construct.MaxPool2d.153(%8)
+      : (<null>) -> (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:25/
+  %10(x) = call @construct.BatchNorm1d.135(%9)
+      : (<null>) -> (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:26/
+  %11(x) = call @construct.Flatten.155(%10)
+      : (<null>) -> (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:27/
+  %12(x) = call @construct.Dense.156(%11)
+      : (<null>) -> (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:28/
+  %13(x) = call @construct.ReLU.151(%12)
+      : (<null>) -> (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:29/
+  %14(x) = call @construct.BatchNorm1d.135(%13)
+      : (<null>) -> (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:30/
+  %15(x) = call @construct.Dense.157(%14)
+      : (<null>) -> (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:31/
+  Return(%15)
+      : (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:32/
+}
+# order:
+#   1: @construct.ForwardFashionWithBatchNorm.134:x{[0]: ValueNode<FuncGraph> construct.Conv2d.150, [1]: x}
+#   2: @construct.ForwardFashionWithBatchNorm.134:x{[0]: ValueNode<FuncGraph> construct.ReLU.151, [1]: x}
+#   3: @construct.ForwardFashionWithBatchNorm.134:x{[0]: ValueNode<FuncGraph> construct.Conv2d.152, [1]: x}
+#   4: @construct.ForwardFashionWithBatchNorm.134:x{[0]: ValueNode<FuncGraph> construct.ReLU.151, [1]: x}
+#   5: @construct.ForwardFashionWithBatchNorm.134:x{[0]: ValueNode<FuncGraph> construct.MaxPool2d.153, [1]: x}
+#   6: @construct.ForwardFashionWithBatchNorm.134:x{[0]: ValueNode<FuncGraph> construct.BatchNorm1d.135, [1]: x}
+#   7: @construct.ForwardFashionWithBatchNorm.134:x{[0]: ValueNode<FuncGraph> construct.Conv2d.154, [1]: x}
+#   8: @construct.ForwardFashionWithBatchNorm.134:x{[0]: ValueNode<FuncGraph> construct.ReLU.151, [1]: x}
+#   9: @construct.ForwardFashionWithBatchNorm.134:x{[0]: ValueNode<FuncGraph> construct.MaxPool2d.153, [1]: x}
+#  10: @construct.ForwardFashionWithBatchNorm.134:x{[0]: ValueNode<FuncGraph> construct.BatchNorm1d.135, [1]: x}
+#  11: @construct.ForwardFashionWithBatchNorm.134:x{[0]: ValueNode<FuncGraph> construct.Flatten.155, [1]: x}
+#  12: @construct.ForwardFashionWithBatchNorm.134:x{[0]: ValueNode<FuncGraph> construct.Dense.156, [1]: x}
+#  13: @construct.ForwardFashionWithBatchNorm.134:x{[0]: ValueNode<FuncGraph> construct.ReLU.151, [1]: x}
+#  14: @construct.ForwardFashionWithBatchNorm.134:x{[0]: ValueNode<FuncGraph> construct.BatchNorm1d.135, [1]: x}
+#  15: @construct.ForwardFashionWithBatchNorm.134:x{[0]: ValueNode<FuncGraph> construct.Dense.157, [1]: x}
+#  16: @construct.ForwardFashionWithBatchNorm.134:[CNode]158{[0]: ValueNode<Primitive> Return, [1]: x}
+
+
+subgraph attr:
+training : 1
+subgraph instance: construct.BatchNorm1d.135 : 000001A0E35758F0
+# In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\layer\normalization.py:137/    def construct(self, x):/
+subgraph @construct.BatchNorm1d.135 parent: [subgraph @construct.Default.129](%para41_x) {
+  %1([CNode]159) = S-Prim-Shape(%para41_phi-x)
+      : (<Tensor[Float32], (64, 64, 12, 12)>) -> (<Tuple[Int64*4], TupleShape(NoShape, NoShape, NoShape, NoShape)>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm/bn-BatchNorm1d)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\layer\normalization.py:138/        self._check_input_dim(self.shape(x), self.cls_name)/
+
+#------------------------> 4
+  %2([CNode]160) = S-Prim-_check_input_dim[constexpr_prim=Bool(1)](%1, "BatchNorm1d")
+      : (<Tuple[Int64*4], TupleShape(NoShape, NoShape, NoShape, NoShape)>, <String, NoShape>) -> (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm/bn-BatchNorm1d)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\layer\normalization.py:138/        self._check_input_dim(self.shape(x), self.cls_name)/
+  %3([CNode]161) = StopGradient(%2)
+      : (<null>) -> (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm/bn-BatchNorm1d)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:30/
+  %4([CNode]162) = S-Prim-is_(None, None)
+      : (<null>, <null>) -> (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm/bn-BatchNorm1d)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\layer\normalization.py:139/        if self.use_batch_statistics is None:/
+  %5([CNode]164) = call @bool_.163(%4)
+      : (<null>) -> (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm/bn-BatchNorm1d)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\layer\normalization.py:139/        if self.use_batch_statistics is None:/
+  %6([CNode]165) = Switch(%5, call @construct.BatchNorm1d.166, call @construct.BatchNorm1d.167)
+      : (<null>, <null>, <null>) -> (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm/bn-BatchNorm1d)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\layer\normalization.py:139/        if self.use_batch_statistics is None:/
+  %7([CNode]168) = %6()
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm/bn-BatchNorm1d)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\layer\normalization.py:139/        if self.use_batch_statistics is None:/
+  %8([CNode]169) = Depend[side_effect_propagate=I64(1)](%7, %3)
+      : (<null>, <null>) -> (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm/bn-BatchNorm1d)
+      # In file C:\Users\15781\AppData\Local\Temp\ipykernel_16032\1067325915.py:30/
+  Return(%8)
+      : (<null>)
+      #scope: (Default/network-WithLossCell/_backbone-ForwardFashionWithBatchNorm/bn-BatchNorm1d)
+      # In file c:\Users\15781\anaconda3\envs\mindspore_py38\lib\site-packages\mindspore\nn\layer\normalization.py:139/        if self.use_batch_statistics is None:/
+}
+# order:
+#   1: @construct.BatchNorm1d.135:[CNode]159{[0]: ValueNode<DoSignaturePrimitive> S-Prim-Shape, [1]: phi-x}
+#   2: @construct.BatchNorm1d.135:[CNode]160{[0]: ValueNode<DoSignaturePrimitive> S-Prim-_check_input_dim, [1]: [CNode]159, [2]: ValueNode<StringImm> BatchNorm1d}
+#   3: @construct.BatchNorm1d.135:[CNode]162{[0]: ValueNode<DoSignaturePrimitive> S-Prim-is_, [1]: ValueNode<None> None, [2]: ValueNode<None> None}
+#   4: @construct.BatchNorm1d.135:[CNode]164{[0]: ValueNode<FuncGraph> bool_.163, [1]: [CNode]162}
+#   5: @construct.BatchNorm1d.135:[CNode]165{[0]: ValueNode<Primitive> Switch, [1]: [CNode]164, [2]: ValueNode<FuncGraph> construct.BatchNorm1d.166, [3]: ValueNode<FuncGraph> construct.BatchNorm1d.167}
+#   6: @construct.BatchNorm1d.135:[CNode]168{[0]: [CNode]165}
+#   7: @construct.BatchNorm1d.135:[CNode]170{[0]: ValueNode<Primitive> Return, [1]: [CNode]169}
+
+
+#===============================================================================
+# num of function graphs in stack: 5/6 (Ignored 1 internal frames).
