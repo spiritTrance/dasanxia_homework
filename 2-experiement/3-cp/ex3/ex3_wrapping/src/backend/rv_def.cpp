@@ -159,6 +159,8 @@ std::string rv::toString(rv::rvOPCODE r){
     case rv::rvOPCODE::J : return "j";
     case rv::rvOPCODE::RET : return "ret";
     case rv::rvOPCODE::CALL : return "call";
+    case rv::rvOPCODE::FNEQ_S  : return"fneq.s";
+    case rv::rvOPCODE::NOP  : return"nop";
     default:
         assert(0 && "Unexpected Operation!");
         break;

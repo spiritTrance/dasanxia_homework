@@ -74,9 +74,11 @@ struct Generator {
     int find_operand(ir::Operand);
     int add_operand(ir::Operand, uint32_t size = 4);
 
-    // 寄存器管理
-    // int calleeRegisterSave();   // 返回保存了多少个寄存器
-    // int callerRegisterSave();
+    // // 寄存器管理
+    // 进入一个函数首先调用callee寄存器
+    int calleeRegisterSave();   // 返回保存了多少个寄存器，要求在进入函数前调用
+    // 要调用的时候调用caller寄存器
+    int callerRegisterSave();
     // void findOperandInRegFile(ir::Operand);
 
     // algorithm

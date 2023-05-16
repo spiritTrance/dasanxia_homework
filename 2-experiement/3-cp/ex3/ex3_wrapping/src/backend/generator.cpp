@@ -724,7 +724,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             else if (op2.type == Type::IntLiteral){
                 int32_t u2 = std::stoi(op2.name);
                 rv::rv_inst rvInst_li;
-                rvInst_li.op = rv::rvOPCODE::FLI;
+                rvInst_li.op = rv::rvOPCODE::LI;
                 rvInst.rs2 = rvInst_li.rd = getRd(op2);
                 rvInst_li.imm = u2;
                 rvInst_li.draw();
@@ -794,52 +794,280 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         case ir::Operator::geq:     // >=       BGE
         case ir::Operator::eq:      // ==       BEQ
         case ir::Operator::neq:     // !=       BNE
-            TODO;
+        {
+            rv::rv_inst rvInst;
+            // 四种情况：Int和Literal两两组合
+            // 由于没有faddi，所以要迁移一下，多个li的伪指令
+            // 我们约定第一个算寄存器的，第二个是立即数加载出来的
+            rvInst.rd = getRd(des);
+            rvInst.op = op == Operator::lss ? rv::rvOPCODE::BLT :\
+                        op == Operator::leq ? rv::rvOPCODE::BGE :\
+                        op == Operator::gtr ? rv::rvOPCODE::BLT :\
+                        op == Operator::geq ? rv::rvOPCODE::BGE :\
+                        op == Operator::eq ? rv::rvOPCODE::BEQ : rv::rvOPCODE::BNE;
+            // 两种情况，特殊交换一下
+            if (op == Operator::leq || op == Operator::gtr){
+                std::swap(op1, op2);
+            }
+            if (op1.type == Type::IntLiteral && op2.type == Type::IntLiteral){
+                int32_t u1 = std::stoi(op1.name);
+                int32_t u2 = std::stoi(op2.name);
+                rv::rv_inst rvInst_li;
+                rvInst_li.op = rv::rvOPCODE::LI;
+                rvInst.rs1 = rvInst_li.rd = getRd(op1);
+                rvInst_li.imm = u1;
+                rvInst_li.draw();
+                rvInst.rs2 = rvInst_li.rd = getRd(op2);
+                rvInst_li.imm = u2;
+                rvInst_li.draw();
+            }
+            else if (op1.type == Type::IntLiteral){
+                int32_t u1 = std::stoi(op1.name);
+                rv::rv_inst rvInst_li;
+                rvInst_li.op = rv::rvOPCODE::LI;
+                rvInst.rs1 = rvInst_li.rd = getRd(op1);
+                rvInst_li.imm = u1;
+                rvInst_li.draw();
+                rvInst.rs2 = getRs2(op2);
+            }
+            else if (op2.type == Type::IntLiteral){
+                int32_t u2 = std::stoi(op2.name);
+                rv::rv_inst rvInst_li;
+                rvInst_li.op = rv::rvOPCODE::LI;
+                rvInst.rs2 = rvInst_li.rd = getRd(op2);
+                rvInst_li.imm = u2;
+                rvInst_li.draw();
+                rvInst.rs1 = getRs2(op1);
+            }
+            else{
+                rvInst.rs1 = getRs1(op1);
+                rvInst.rs2 = getRs1(op2);
+            }
+            rvInst.draw();
+        }
             break;
         case ir::Operator::flss:    // <        FLT
         case ir::Operator::fleq:    // <=       FLE
         case ir::Operator::fgtr:    // >        not exist
         case ir::Operator::fgeq:    // >=       not exist
-            break;
-        case ir::Operator::feq:     // ==(f)
-            break;
-            break;
-        case ir::Operator::fneq:
+        case ir::Operator::feq:     // ==
+        case ir::Operator::fneq:    // !=
+        {
+            // 注意有很多bug了！看是FLI还是LI还是啥，bug有点多，主要是状态对不上
+            rv::rv_inst rvInst;
+            // 四种情况：Int和Literal两两组合
+            // 由于没有faddi，所以要迁移一下，多个li的伪指令
+            // 我们约定第一个算寄存器的，第二个是立即数加载出来的
+            rvInst.frd = fgetRd(des);
+            rvInst.op = op == Operator::flss ? rv::rvOPCODE::FLT_S :\
+                        op == Operator::fleq ? rv::rvOPCODE::FLE_S :\
+                        op == Operator::feq  ? rv::rvOPCODE::FEQ_S :\
+                        op == Operator::fneq ? rv::rvOPCODE::FNEQ_S:\
+                        op == Operator::fgtr ? rv::rvOPCODE::FLT_S : rv::rvOPCODE::FLE_S;
+            // 两种情况，特殊交换一下
+            if (op == Operator::fgtr || op == Operator::fgeq){
+                std::swap(op1, op2);
+            }
+            if (op1.type == Type::FloatLiteral && op2.type == Type::FloatLiteral){
+                float u1 = std::stof(op1.name);
+                float u2 = std::stof(op2.name);
+                rv::rv_inst rvInst_li;
+                rvInst_li.op = rv::rvOPCODE::FLI;
+                rvInst.frs1 = rvInst_li.frd = fgetRd(op1);
+                rvInst_li.imm = *(uint32_t*)(&u1);
+                rvInst_li.draw();
+                rvInst.frs2 = rvInst_li.frd = fgetRd(op2);
+                rvInst_li.imm = *(uint32_t*)(&u2);
+                rvInst_li.draw();
+            }
+            else if (op1.type == Type::FloatLiteral){
+                float u1 = std::stof(op1.name);
+                rv::rv_inst rvInst_li;
+                rvInst_li.op = rv::rvOPCODE::FLI;
+                rvInst.frs1 = rvInst_li.frd = fgetRd(op1);
+                rvInst_li.imm = *(uint32_t*)(&u1);
+                rvInst_li.draw();
+                rvInst.frs2 = fgetRs2(op2);
+            }
+            else if (op2.type == Type::FloatLiteral){
+                float u2 = std::stof(op2.name);
+                rv::rv_inst rvInst_li;
+                rvInst_li.op = rv::rvOPCODE::FLI;
+                rvInst.frs2 = rvInst_li.frd = fgetRd(op2);
+                rvInst_li.imm = *(uint32_t*)(&u2);
+                rvInst_li.draw();
+                rvInst.frs1 = fgetRs2(op1);
+            }
+            else{
+                rvInst.frs1 = fgetRs1(op1);
+                rvInst.frs2 = fgetRs1(op2);
+            }
+            rvInst.draw();
+        }
             break;
         // logic instruction
-        case ir::Operator::_not:
+        case ir::Operator::_not:        // 根据文档，必然是int类型
+        {
+            rv::rv_inst rvInst;
+            rvInst.op = rv::rvOPCODE::BEQ;      // 和零寄存器判断
+            rvInst.rd = getRd(des);
+            rvInst.rs1 = getRs1(op1);
+            rvInst.rs2 = rv::rvREG::X0;
+            rvInst.draw();
+        }
             break;
-        case ir::Operator::_and:
-            break;
+        case ir::Operator::_and:        // 根据文档，必然是int类型
         case ir::Operator::_or:
+        {
+            rv::rv_inst rvInst;
+            // 四种情况：Int和Literal两两组合
+            // 由于没有faddi，所以要迁移一下，多个li的伪指令
+            // 我们约定第一个算寄存器的，第二个是立即数加载出来的
+            rvInst.rd = getRd(des);
+            rvInst.op = op == Operator::_or ? rv::rvOPCODE::OR : rv::rvOPCODE::AND;
+            if (op1.type == Type::IntLiteral || op2.type == Type::IntLiteral){
+                rvInst.op = op == Operator::_or ? rv::rvOPCODE::ORI : rv::rvOPCODE::ANDI;
+            }
+            if (op1.type == Type::IntLiteral && op2.type == Type::IntLiteral){
+                int32_t u1 = std::stoi(op1.name);       // op1的进寄存器，op2是常量
+                int32_t u2 = std::stoi(op2.name);
+                rv::rv_inst rvInst_li;
+                rvInst_li.op = rv::rvOPCODE::LI;
+                rvInst.rs1 = rvInst_li.rd = getRd(op1);
+                rvInst_li.imm = u1;
+                rvInst_li.draw();
+                rvInst.imm = u2;
+            }
+            else if (op1.type == Type::IntLiteral){
+                int32_t u1 = std::stoi(op1.name);
+                rvInst.rs1 = getRs1(op2);
+                rvInst.imm = u1;
+            }
+            else if (op2.type == Type::IntLiteral){
+                int32_t u2 = std::stoi(op2.name);
+                rvInst.rs1 = getRs1(op1);
+                rvInst.imm = u2;
+            }
+            else{
+                rvInst.rs1 = getRs1(op1);
+                rvInst.rs2 = getRs1(op2);
+            }
+            rvInst.draw();
+        }
             break;
         // lw operation and alloc, getptr
-        case ir::Operator::load:
+        case ir::Operator::load:    // des 是目标读出变量，op1 是数组名，op2是偏移量
+        // 这里就要小心考虑了
+        // int a[3] = {1,2,3};
+        // int b = a[2];
+        // int c = a[1] + 9;
+        // a[2]这里的翻译是：
+        // getptr $tem, a, 2
+        // 注意这里$tem是地址不是load出来的值
+        // 注意FloatPtr的情况
+        {
+            rv::rv_inst rvInst;
+            if (op1.type == Type::FloatPtr){
+                rvInst.op = rv::rvOPCODE::FLW;
+                rvInst.frd = fgetRd(des);
+                rvInst.rs1 = getRs1(op1);
+                rvInst.imm = std::stoi(op2.name);
+            }
+            else if (op1.type == Type::IntPtr){
+                rvInst.op = rv::rvOPCODE::LW;
+                rvInst.rd = getRd(des);
+                rvInst.rs1 = getRs1(op1);
+                rvInst.imm = std::stoi(op2.name);
+            }
+            else{
+                assert(0 && "Invalid type!");
+            }
+            rvInst.draw();
+        }
             break;
-        case ir::Operator::store:
+        case ir::Operator::store:   // des 是目标存入变量，op1 是数组名，op2是偏移量
+        {
+            rv::rv_inst rvInst;
+            if (op1.type == Type::FloatPtr){
+                rvInst.op = rv::rvOPCODE::FSW;
+                rvInst.frs2 = fgetRs2(des);      // 要存的值，注意一下
+                rvInst.rs1 = getRs1(op1);
+                rvInst.imm = std::stoi(op2.name);
+            }
+            else if (op1.type == Type::IntPtr){
+                rvInst.op = rv::rvOPCODE::SW;
+                rvInst.rs2 = getRs2(des);
+                rvInst.rs1 = getRs1(op1);
+                rvInst.imm = std::stoi(op2.name);
+            }
+            else{
+                assert(0 && "Invalid type!");
+            }
+            rvInst.draw();
+        }
             break;
-        case ir::Operator::alloc:
+        case ir::Operator::alloc:   // alloc des(a), op1(2)
+        {
+            int sz = std::stoi(op1.name);
+            add_operand(des, sz * 4);
+        }
             break;
         case ir::Operator::getptr:
+        // getptr des(np), arrName(op1), off(op2)
+        // 任务其实是获得地址
+        // 要注意判断全局变量的情况
+        {
+            rv::rv_inst rvInst;
+            rvInst.op = rv::rvOPCODE::LI;
+            TODO;
+        }
             break;
         // function control
-        case ir::Operator::call:    // 难度较大
+        case ir::Operator::call:    // 难度较大，想一下sp指针如何移动？在哪移动？调用前移动好吗？显然不好。但参数如何保存得知道
+        {
             ir::Instruction *instPtr = &inst;
             ir::CallInst* callInstPtr= dynamic_cast<ir::CallInst*>(instPtr);    // callInst 要向下类型转换
             assert(callInstPtr && "Not a callInst.");
+        }
+            TODO;
             break;
         case ir::Operator::_return:
+        {
+            TODO;
+        }
             break;
         // _goto
-        case ir::Operator::_goto:   // 难度较大
+        case ir::Operator::_goto:
+        {
+            TODO;
+        }
             break;
         // convertion
         case ir::Operator::cvt_f2i:
+        {
+            rv::rv_inst rvInst;
+            rvInst.op = rv::rvOPCODE::FCVT_W_S;
+            rvInst.rd = getRd(des);
+            rvInst.frs1 = fgetRd(op1);
+            rvInst.draw();
+        }
             break;
         case ir::Operator::cvt_i2f:
+        {
+            rv::rv_inst rvInst;
+            rvInst.op = rv::rvOPCODE::FCVT_S_W;
+            rvInst.frd = fgetRd(des);
+            rvInst.rs1 = getRd(op1);
+            rvInst.draw();
+        }
             break;
         // unuse
         case ir::Operator::__unuse__:
+        {
+            rv::rv_inst rvInst;
+            rvInst.op = rv::rvOPCODE::NOP;
+            rvInst.draw();
+        }
             break;
         default:
             break;
@@ -878,7 +1106,7 @@ void backend::Generator::gen_globalVal(){
             // // 构建控制流图，计算所有能够计算的全局变量值
             // const ir::Function &globalFunc = program.functions[0];
             // for (ir::Instruction* inst: globalFunc.InstVec){
-                
+            //         
             // }
     const auto &globalValList = program.globalVal;
     for (const auto& globalVal: globalValList){
@@ -934,6 +1162,15 @@ int backend::Generator::add_operand(ir::Operand op, uint32_t size = 4){
     return memvar_Stack[index].add_operand(op);
 }
 
+
+// 返回保存了多少个寄存器
+int backend::Generator::calleeRegisterSave(){
+
+}
+
+int backend::Generator::callerRegisterSave(){
+
+}
 
 // algorithm
 // std::vector<ir::Operand> backend::Generator::linearScan(const std::vector<ir::Instruction *>) const{
