@@ -152,10 +152,14 @@ std::string rv::toString(rv::rvOPCODE r){
     case rv::rvOPCODE::FEQ_S  : return"feq.s";
     case rv::rvOPCODE::FLT_S  : return"flt.s";
     case rv::rvOPCODE::FLE_S  : return"fle.s";
+        // reg move
+    case rv::rvOPCODE::FMV_W_X: return"fmv.w.x";
+    case rv::rvOPCODE::FMV_X_W: return"fmv.x.w";
     // Pseudo Instructions
     case rv::rvOPCODE::LA  : return "la";
     case rv::rvOPCODE::LI : return "li";
     case rv::rvOPCODE::MOV  : return "mv";
+    case rv::rvOPCODE::FMOV  : return "fmv.s";
     case rv::rvOPCODE::J : return "j";
     case rv::rvOPCODE::RET : return "ret";
     case rv::rvOPCODE::CALL : return "call";

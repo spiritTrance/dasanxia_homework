@@ -128,9 +128,7 @@ std::string rv::rv_inst::draw() const{
                       toGenerateString(rd) + "," + \
                       toGenerateString(rs1) + "\n";
     case rvOPCODE::FLI:
-        return "\t" + toString(op) + "\t" + \
-                      toGenerateString(frd) + "," + \
-                      std::to_string(imm) + "\n";
+        assert(0 && "Impossible pseudo instruction!");
     case rvOPCODE::FMOV:
         return "\t" + toString(op) + "\t" + \
                       toGenerateString(frd) + "," + \
@@ -146,6 +144,15 @@ std::string rv::rv_inst::draw() const{
         return toString(op) + "\n";
     case rvOPCODE::CALL:
         return "\t" + toString(op) + "\t" + label + "\n";
+        // reg move
+    case rv::rvOPCODE::FMV_W_X:
+        return "\t" + toString(op) + "\t" + \
+                      toGenerateString(frd) + "," + \
+                      toGenerateString(rs1) + "\n";
+    case rv::rvOPCODE::FMV_X_W: 
+        return "\t" + toString(op) + "\t" + \
+                      toGenerateString(frs1) + "," + \
+                      toGenerateString(rd) + "\n";
     case rv::rvOPCODE::NOP:
         return "\tnop\t\n";
     default:

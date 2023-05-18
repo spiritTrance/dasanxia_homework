@@ -1,6 +1,14 @@
 	.file	"test.cpp"
 	.option nopic
 	.text
+	.globl	b
+	.section	.sdata,"aw"
+	.align	2
+	.type	b, @object
+	.size	b, 4
+b:
+	.word	9
+	.text
 	.align	1
 	.globl	main
 	.type	main, @function
@@ -9,21 +17,32 @@ main:
 	.cfi_startproc
 	addi	sp,sp,-32
 	.cfi_def_cfa_offset 32
-	sw	s0,28(sp)
-	.cfi_offset 8, -4
+	sw	ra,28(sp)
+	sw	s0,24(sp)
+	.cfi_offset 1, -4
+	.cfi_offset 8, -8
 	addi	s0,sp,32
 	.cfi_def_cfa 8, 0
-	li	a5,1
+	li	a5,9
 	sw	a5,-20(s0)
-	li	a5,3
-	sw	a5,-24(s0)
-	li	a4,1
-	lw	a5,-24(s0)
-	sub	a5,a4,a5
-	sw	a5,-28(s0)
-	lw	a5,-28(s0)
+	lw	a4,-20(s0)
+	li	a5,8
+	bne	a4,a5,.L2
+	li	a5,8
+	sw	a5,-20(s0)
+	j	.L3
+.L2:
+	li	a5,6
+	sw	a5,-20(s0)
+.L3:
+	lw	a0,-20(s0)
+	li	a0,b
+	call	putint
+	lw	a5,-20(s0)
 	mv	a0,a5
-	lw	s0,28(sp)
+	lw	ra,28(sp)
+	.cfi_restore 1
+	lw	s0,24(sp)
 	.cfi_restore 8
 	.cfi_def_cfa 2, 32
 	addi	sp,sp,32

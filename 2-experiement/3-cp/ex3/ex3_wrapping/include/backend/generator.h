@@ -38,21 +38,25 @@ struct Generator {
     std::ofstream& fout;                 // output file
     std::vector<stackVarMap> memvar_Stack;  // 注意是栈式存储，这里我们假设sp总为0，且sp总为调整过后的。
     Generator(ir::Program&, std::ofstream&);
+    // 记录寄存器到Operand之间的双射，全局变量的Operand也在此列
     std::map<ir::Operand, rv::rvFREG> f_opd2regTable;
     std::map<rv::rvFREG, ir::Operand> f_reg2opdTable;
     std::map<ir::Operand, rv::rvREG> i_opd2regTable;
     std::map<rv::rvREG, ir::Operand> i_reg2opdTable;
     // const parameters
     // reg flag
-    int i_validReg;         // 标识存有数据的寄存器
-    int f_validReg;         // 标识存有数据的寄存器
-    int i_imAtomicComp;     // 标识当前指令要参与计算的寄存器
-    int f_imAtomicComp;     // 标识当前指令要参与计算的寄存器
+    unsigned int i_validReg;         // 标识存有数据的寄存器
+    unsigned int f_validReg;         // 标识存有数据的寄存器
+    unsigned int i_imAtomicComp;     // 标识当前指令要参与计算的寄存器
+    unsigned int f_imAtomicComp;     // 标识当前指令要参与计算的寄存器
 
     // reg allocate api
     bool isNewOperand(ir::Operand);
     bool isInReg(ir::Operand);
     bool isInStack(ir::Operand);
+    bool isGlobalVar(ir::Operand);
+    void expireRegData(int, int);       // 将寄存器里面的值移回到内存，注意可能是全局变量
+    void loadMemData(int, ir::Operand);         // 将内存里面的值读进到寄存器
     rv::rvREG getRd(ir::Operand);
     rv::rvREG getRs1(ir::Operand);
     rv::rvREG getRs2(ir::Operand);
@@ -72,7 +76,7 @@ struct Generator {
     int getOffSetFromStackSpace(ir::Operand);
 
     int find_operand(ir::Operand);
-    int add_operand(ir::Operand, uint32_t size = 4);
+    int add_operand(ir::Operand, uint32_t size = 4);    // 栈空间里面分配空间
 
     // // 寄存器管理
     // 进入一个函数首先调用callee寄存器

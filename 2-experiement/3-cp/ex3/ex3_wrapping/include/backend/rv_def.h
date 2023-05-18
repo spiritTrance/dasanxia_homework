@@ -100,6 +100,7 @@ enum class rvOPCODE {
     FADD_S, FSUB_S, FMUL_S, FDIV_S,                         // Operation
     FCVT_S_W, FCVT_W_S,                                     // Convert
     FEQ_S, FLT_S, FLE_S,                                    // Comp Inst 
+    FMV_X_W, FMV_W_X,                                       // register move 
     // Pseudo Instructions
     LA, LI, MOV, J,                                         // ...
     RET, CALL,
