@@ -8,6 +8,7 @@
 #include<map>
 #include<string>
 #include<vector>
+#include<queue>
 #include<fstream>
 
 namespace backend {
@@ -49,7 +50,11 @@ struct Generator {
     unsigned int f_validReg;         // 标识存有数据的寄存器
     unsigned int i_imAtomicComp;     // 标识当前指令要参与计算的寄存器
     unsigned int f_imAtomicComp;     // 标识当前指令要参与计算的寄存器
-
+    // 负责生成flag要维护的相关信息，记得每进行一个函数记得清空。
+    unsigned int ir_stamp = 0;      // 每进入一个函数就清空，第一条指令为1不是0
+    std::queue<int> flag_q;         // 由于指令是顺序扫描的，因此元素记录了该跳进哪个ir
+    unsigned int index_flag[100000] = {};       // 记录第几个ir应当打印第几个flag，e.g. index_flag[4] = 3, 则应该在第四条ir指令开头打印.L3
+    unsigned int goto_flag = 1;        // 从1开始，从不恢复
     // reg allocate api
     bool isNewOperand(ir::Operand);
     bool isInReg(ir::Operand);
@@ -71,6 +76,8 @@ struct Generator {
     void gen_globalVal();   // 生成全局变量段的
     void gen_globalFunc(ir::Instruction&);   // 全局变量函数的调用
 
+    // 跳转相关的标签维护
+    void get_ir_flagInfo(std::vector<ir::Instruction *>&);
     // 获取栈中的Operand
     ir::Operand getOperandFromStackSpace(ir::Operand);
     int getOffSetFromStackSpace(ir::Operand);
@@ -81,8 +88,10 @@ struct Generator {
     // // 寄存器管理
     // 进入一个函数首先调用callee寄存器
     int calleeRegisterSave();   // 返回保存了多少个寄存器，要求在进入函数前调用
+    int calleeRegisterRestore();   // 返回保存了多少个寄存器，要求在进入函数前调用
     // 要调用的时候调用caller寄存器
     int callerRegisterSave();
+    int callerRegisterRestore();   // 返回保存了多少个寄存器，要求在进入函数前调用
     // void findOperandInRegFile(ir::Operand);
 
     // algorithm
@@ -97,6 +106,7 @@ struct GlobalValElement{
     std::vector<int32_t> initArr;
     int maxLen;
 
+    GlobalValElement(){};
     GlobalValElement(std::string, ir::Type, std::vector<int32_t>, int);
     GlobalValElement operator=(const GlobalValElement&);
     GlobalValElement(const GlobalValElement&);

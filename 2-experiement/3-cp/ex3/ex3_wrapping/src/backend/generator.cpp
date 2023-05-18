@@ -1,8 +1,8 @@
 #include "backend/generator.h"
-#include "backend/rv_def.h"
-#include "backend/rv_inst_impl.h"
 #include <iostream>
+#include <queue>
 #include <assert.h>
+#include <string.h>
 #define TODO assert(0 && "todo");
 #define endl "\n"
 
@@ -430,6 +430,10 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
     // 4、仔细思考：全局变量作为源操作数和目的操作数怎么办，全局变量作为参数传进来怎么办（尤其是数组）
     // 5、完蛋
     // TODO DEBUG: 浮点计数器不能采用LI加载常量
+    ir_stamp += 1;
+    if (index_flag[ir_stamp]){
+        fout << ".L" + std::to_string(index_flag[ir_stamp]) + ":"<< endl;
+    }
     static std::map<std::string,ir::Function*> lib_funcs = {
         {"getint", new Function("getint", Type::Int)},
         {"getch", new Function("getch", Type::Int)},
@@ -964,8 +968,9 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         }
             TODO;
             break;
-        case ir::Operator::_return:  // 注意这里不恢复现场，只负责保存返回值，ret的操作交给其他函数     
+        case ir::Operator::_return:
         {
+            // 感觉要恢复现场了，寄！     
             rv::rv_inst rvInst;
             // 注意浮点数的返回值的存储地址
             if (op1.type == Type::Int){
@@ -990,9 +995,48 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         case ir::Operator::_goto:
         // op1 cond des offset
         // 值得注意的是跳转多远？
+        // 编译器给出了答案：定一个小标签，那么就转化成一个在线算法(fnmdp，只能离线处理，考虑while循环，你猜猜往回跳的flag怎么确定？)：
+        // 维护一个set，每打印一个inst，set - 1，当set变为0时，打印一个flag。
+        // 但是这个算法的时间复杂度明显很高，怎么办？
+        // 不一定，对于一个函数，可以维护一个时间戳，这个时间戳每扫一个ir自增1，
+        // 如果扫到一个goto，那么记录一个时间戳+goto的偏移量
+        // 注意跳转到同一个地方的问题，这个问题的最好办法就是设定一个哈希表，每次进行查询。
+        // 哈希表以index作为下标，存储的元素是flag编号。这个编号单调递增，全局唯一
+        // 完美，只不过要注意每个函数都需要把哈希表清空，然后注意哈希表的回绕。
         {
-
-            TODO;
+            rv::rv_inst rvInst;
+            assert(index_flag[ir_stamp] && "Invalid Flag!");
+            rvInst.label = ".L" + std::to_string(index_flag[ir_stamp]);
+            if (op1.type != Type::null){        // 有条件，注意都是可能跳标签的
+                rv::rv_inst rvInst;
+                if (op1.type == Type::IntLiteral){      // 整数字面量
+                    if (std::stoi(op1.name)){   // 满足条件
+                        rvInst.op = rv::rvOPCODE::J;
+                        rvInst.draw();
+                    }
+                }
+                else if(op1.type == Type::FloatLiteral){    // 浮点数字面量
+                    if (std::stof(op1.name)){   // 满足条件
+                        rvInst.op = rv::rvOPCODE::J;
+                        rvInst.draw();
+                    }
+                }
+                else if (op1.type == Type::Int){
+                    rvInst.op = rv::rvOPCODE::BNE;
+                    rvInst.rs1 = getRs1(op1);
+                    rvInst.rs2 = rv::rvREG::X0;
+                }
+                else if (op1.type == Type::Float){  // 一眼不可能，先否了再说
+                    assert(0 && "Goto: invalid float register!");
+                }
+                else{
+                    assert(0 && "Invalid Type!");
+                }
+            }
+            else{       // 无条件跳转
+                rvInst.op = rv::rvOPCODE::J;
+                rvInst.draw();
+            }
         }
             break;
         // convertion
@@ -1074,9 +1118,32 @@ void backend::Generator::gen_globalVal(){
 
 // 全局变量函数的调用
 void backend::Generator::gen_globalFunc(ir::Instruction& inst){
-
+    TODO;
 }   
 
+void backend::Generator::get_ir_flagInfo(std::vector<ir::Instruction *>& instArr){
+    ir_stamp = 0;
+    while(!flag_q.empty()){
+        flag_q.pop();
+    }
+    memset(index_flag, 0, sizeof(index_flag));
+    for (auto& inst: instArr){
+        ir_stamp += 1;
+        if (inst->op == Operator::_goto){
+            int offset = std::stoi(inst->des.name);
+            // 偷懒被发现了（确信）
+            assert((0 <= offset + ir_stamp && offset + ir_stamp < 100000) && "Flag index exceeded!");
+            index_flag[offset + ir_stamp] = goto_flag++;
+        }
+    }
+    for (auto& inst:instArr){
+        if (inst->op == Operator::_goto){
+            int offset = std::stoi(inst->des.name);
+            int queryIndex = offset + ir_stamp;
+            flag_q.push(index_flag[queryIndex]);
+        }
+    }
+}
 
 ir::Operand backend::Generator::getOperandFromStackSpace(ir::Operand opd){
     int index = memvar_Stack.size() - 1;
@@ -1109,7 +1176,7 @@ int backend::Generator::find_operand(ir::Operand op){
     return memvar_Stack[index].find_operand(op);
 }
 
-int backend::Generator::add_operand(ir::Operand op, uint32_t size = 4){
+int backend::Generator::add_operand(ir::Operand op, uint32_t size){
     int index = memvar_Stack.size() - 1;
     assert(index != -1 && "No Such menVar_stack size of 0!");
     auto it = memvar_Stack[index].stack_table.find(op);
@@ -1122,11 +1189,23 @@ int backend::Generator::add_operand(ir::Operand op, uint32_t size = 4){
 
 // 返回保存了多少个寄存器
 int backend::Generator::calleeRegisterSave(){
+    TODO;
+    return 0;
+}
 
+int backend::Generator::calleeRegisterRestore(){
+    TODO;
+    return 0;
 }
 
 int backend::Generator::callerRegisterSave(){
+    TODO;
+    return 0;
+}
 
+int backend::Generator::callerRegisterRestore(){
+    TODO;
+    return 0;
 }
 
 // algorithm
@@ -1147,6 +1226,12 @@ backend::GlobalValElement backend::GlobalValElement::operator=(const GlobalValEl
     this->tp = ele.tp;
     this->initArr = ele.initArr;
     this->maxLen = ele.maxLen;
+    backend::GlobalValElement obj;
+    obj.sVarName = ele.sVarName;
+    obj.tp = ele.tp;
+    obj.initArr = ele.initArr;
+    obj.maxLen = ele.maxLen;
+    return obj;
 }
 // 拷贝构造函数
 backend::GlobalValElement::GlobalValElement(const GlobalValElement& ele){

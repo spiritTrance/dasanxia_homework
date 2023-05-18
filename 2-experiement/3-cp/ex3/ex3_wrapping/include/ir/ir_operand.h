@@ -22,6 +22,9 @@ struct Operand {
     std::string name;
     Type type;
     Operand(std::string = "null", Type = Type::null);
+    bool operator<(const ir::Operand &) const;
+    bool operator>(const ir::Operand &) const;
+    bool operator=(const ir::Operand &) const;
 };
 
 }
