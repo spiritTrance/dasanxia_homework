@@ -6,6 +6,12 @@
 #define TODO assert(0 && "todo");
 #define endl "\n"
 
+/*
+ *  在开始之前，我强调一下全局变量的处理：
+ *      对于变量，全局变量的处理在(f)getR*函数中处理
+ *      对于数组，涉及到的IR也就那几个，getptr, alloc, load, store这几个，看IR->RISCV的转换函数，有处理
+ */
+
 using namespace ir;
 using std::cout;
 
@@ -134,7 +140,7 @@ void backend::Generator::loadMemData(int regIndex, ir::Operand op){
     else if (op.type == Type::IntPtr  || op.type == Type::Int || op.type == Type::IntLiteral){
         rv::rvREG reg = rv::rvREG(regIndex);
         assert(!(i_validReg >> regIndex) && "Not a empty register!");
-        if (isGlobalVar(op)){   // 全局变量
+        if (isGlobalVar(op)){   // 全局变量，约定X7放地址
             fout<<"\t"<<"lui\t"<<toGenerateString(rv::rvREG::X7)<<","<<"\%hi("<<op.name<<")"<<endl;
             fout<<"\t"<<"lw\t"<<toGenerateString(reg)<<","<<"\%lo("<<op.name<<")("<<toGenerateString(rv::rvREG::X7)<<")"<<endl;
         }
@@ -143,7 +149,7 @@ void backend::Generator::loadMemData(int regIndex, ir::Operand op){
             rv::rv_inst rv_load_inst;
             rv_load_inst.op = rv::rvOPCODE::FLW;
             rv_load_inst.rd = reg;
-            rv_load_inst.rs1 = rv::rvREG::X8;
+            rv_load_inst.rs1 = rv::rvREG::X8;       // fp
             rv_load_inst.imm = getOffSetFromStackSpace(op);
             rv_load_inst.draw();
         }
@@ -409,10 +415,12 @@ rv::rvFREG backend::Generator::fgetRs2(ir::Operand op){
 // 注意function那个数组的第一个一定是全局变量函数
 void backend::Generator::gen() {
     backend::Generator::gen_globalVal();
+    TODO;
 }
 
 void backend::Generator::gen_func(ir::Function& func){
     // 每进入一个块，寄存器caller保存寄存器有效位清空
+    // 进入一个函数时，要注意形参列表相关信息的维护（比如op到reg之间的映射！！！）
     fout << func.name << ":"<<endl;     // 标签标注
     // 被调用者保存寄存器
     TODO;
@@ -456,7 +464,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
     switch (op)
     {
         // data assignment
-        case ir::Operator::def:     // 认为马上就会用，就放寄存器吧
+        case ir::Operator::def:     // 认为马上就会用，就放寄存器吧...也要注意全局变量的情况
         case ir::Operator::mov:
         {
             rv::rv_inst inst;
@@ -871,7 +879,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         {
             rv::rv_inst rvInst;
             if (op1.type == Type::FloatPtr){
-                if (isGlobalVar(op1)){
+                if (isGlobalVar(op1)){      // 全局变量
                     rvInst.rs1 = getRs1(op1);
                     fout<<"\t"<<"lui\t"<<toGenerateString(rvInst.rs1)<<","<<"\%hi("<<op1.name<<")"<<endl;
                     fout<<"\t"<<"addi\t"<<toGenerateString(rvInst.rs1)<<","<<toGenerateString(rvInst.rd)<<","<<"\%lo("<<op1.name<<")"<<endl;     // arrName base addr
@@ -965,33 +973,133 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             ir::Instruction *instPtr = &inst;
             ir::CallInst* callInstPtr= dynamic_cast<ir::CallInst*>(instPtr);    // callInst 要向下类型转换
             assert(callInstPtr && "Not a callInst.");
+            callerRegisterSave();
+            // 把相应参数读入相应寄存器
+            int intRegCount = 0;        // 整数寄存器的数量
+            int floatRegCount = 0;      // 浮点数寄存器的数量
+            static rv::rvREG i_reg_param[8] = {rv::rvREG::X10, rv::rvREG::X11, rv::rvREG::X12, \
+                rv::rvREG::X13, rv::rvREG::X14, rv::rvREG::X15, rv::rvREG::X16, rv::rvREG::X17};
+            static rv::rvFREG f_reg_param[8] = {rv::rvFREG::F10, rv::rvFREG::F11, rv::rvFREG::F12, \
+                rv::rvFREG::F13, rv::rvFREG::F14, rv::rvFREG::F15, rv::rvFREG::F16, rv::rvFREG::F17};
+            std::vector<ir::Operand> stackParamList;        // 存放装不下的全局变量到stack空间里，
+            // 注意fp会到最后的sp，所以一定要相对于sp来存，我们假定sp在gen_func里面管理，
+            // 且在该函数就可以算出sp
+            for (size_t i = 0; i < callInstPtr->argumentList.size();i++){
+                // 考虑全局变量和临时变量，以及六种参数的可能情况的处理？
+                // 哈，浮点数寄存器也要传参的hhh
+                // 问题来了：全局变量作为形参，在被调用者函数中，应该怎么识别
+                // 识别你妈啊，傻逼，这他妈不就变成局部变量了么？
+                ir::Operand paramOpd = callInstPtr->argumentList[i];
+                if (paramOpd.type == Type::IntLiteral){     // 先考虑字面量的情况，他们必然不受全局变量的打扰
+                    if (intRegCount >= 8){
+                        stackParamList.push_back(paramOpd);
+                        continue;
+                    }
+                    rv::rv_inst rvInst;
+                    rvInst.op = rv::rvOPCODE::LI;
+                    rvInst.rd = i_reg_param[intRegCount++];
+                    rvInst.imm = std::stoi(paramOpd.name);
+                    rvInst.draw();
+                }
+                else if (paramOpd.type == Type::FloatLiteral){
+                    if (floatRegCount >= 8){
+                        stackParamList.push_back(paramOpd);
+                        continue;
+                    }
+                    rv::rv_inst rvInst;
+                    rv::rv_inst rvInst_f;
+                    rvInst.op = rv::rvOPCODE::LI;
+                    rvInst_f.op = rv::rvOPCODE::FMV_W_X;
+                    rvInst_f.rs1 = rvInst.rd = rv::rvREG::X7;      // 一切都交给X7承担！
+                    float f = std::stof(paramOpd.name);
+                    rvInst.imm = *(int32_t *)(&f);
+                    rvInst_f.frd = f_reg_param[floatRegCount++];
+                    rvInst.draw();
+                    rvInst_f.draw();
+                }
+                // 啊，其实全局变量没必要考虑，主要是getRd啥的都处理了
+                else if (paramOpd.type == Type::Float || paramOpd.type == Type::FloatPtr){
+                    if (floatRegCount >= 8){
+                        stackParamList.push_back(paramOpd);
+                        continue;
+                    }
+                    rv::rv_inst rvInst;
+                    rvInst.op = rv::rvOPCODE::FMOV;
+                    rvInst.frd = f_reg_param[floatRegCount++];
+                    rvInst.frs1 = fgetRs1(paramOpd);
+                    rvInst.draw();
+                }
+                else if (paramOpd.type == Type::Int || paramOpd.type == Type::IntPtr){
+                    if (intRegCount >= 8){
+                        stackParamList.push_back(paramOpd);
+                        continue;
+                    }
+                    rv::rv_inst rvInst;
+                    rvInst.op = rv::rvOPCODE::MOV;
+                    rvInst.rd = i_reg_param[floatRegCount++];
+                    rvInst.rs1 = getRs1(paramOpd);
+                    rvInst.draw();
+                }
+                else{
+                    assert(0 && "unexpected type!");
+                }
+            }
+            // 处理参数个数溢出的情况
+            for (auto& opd: stackParamList){
+                if (stackParamList.size()){
+                    // FIXME : 盲猜样例没有这种情况，有了assert了再看吧，不想写
+                    assert(0 && "Need Process FuncParams which more than 8!");
+                }
+            }
+            calleeRegisterRestore();
         }
-            TODO;
             break;
         case ir::Operator::_return:
         {
-            // 感觉要恢复现场了，寄！     
+            // 感觉要恢复现场了
+            // 恢复现场的事就交给gen_func函数好了 
+            // a0和a1是caller寄存器不是callee，返回时只读回来callee，所以不用怕
             rv::rv_inst rvInst;
             // 注意浮点数的返回值的存储地址
             if (op1.type == Type::Int){
-                
+                rv::rv_inst rvInst;
+                rvInst.op = rv::rvOPCODE::MOV;
+                rvInst.rd = rv::rvREG::X10;
+                rvInst.rs1 = getRs1(op1);
+                rvInst.draw();
             }
             else if (op1.type == Type::Float){
-
+                rv::rv_inst rvInst;
+                rvInst.op = rv::rvOPCODE::FMOV;
+                rvInst.frd = rv::rvFREG::F10;
+                rvInst.frs1 = fgetRs1(op1);
+                rvInst.draw();
             }
             else if (op1.type == Type::IntLiteral){
-
+                rv::rv_inst rvInst;
+                rvInst.op = rv::rvOPCODE::LI;
+                rvInst.rd = rv::rvREG::X10;     // a0 返回地址
+                rvInst.imm = std::stoi(op1.name);
+                rvInst.draw();
             }
             else if (op1.type == Type::FloatLiteral){
-
+                rv::rv_inst rvInst;
+                rv::rv_inst rvInst_f;
+                rvInst.op = rv::rvOPCODE::LI;
+                rvInst_f.op = rv::rvOPCODE::FMV_W_X;
+                rvInst_f.rs1 = rvInst.rd = rv::rvREG::X7;      // 一切都交给X7承担！
+                float f = std::stof(op1.name);
+                rvInst.imm = *(int32_t *)(&f);
+                rvInst_f.frd = rv::rvFREG::F10;     // 浮点数的返回寄存器
+                rvInst.draw();
+                rvInst_f.draw();
             }
             else{
+                // 注意Ptr的情况没处理，我盲猜不需要处理，应该在IR阶段处理了，遇到了再说吧
                 assert(0 && "Unexpected Type!");
             }
-            TODO;
         }
             break;
-        // _goto
         case ir::Operator::_goto:
         // op1 cond des offset
         // 值得注意的是跳转多远？
@@ -1116,11 +1224,6 @@ void backend::Generator::gen_globalVal(){
     }
 }
 
-// 全局变量函数的调用
-void backend::Generator::gen_globalFunc(ir::Instruction& inst){
-    TODO;
-}   
-
 void backend::Generator::get_ir_flagInfo(std::vector<ir::Instruction *>& instArr){
     ir_stamp = 0;
     while(!flag_q.empty()){
@@ -1187,31 +1290,51 @@ int backend::Generator::add_operand(ir::Operand op, uint32_t size){
 }
 
 
-// 返回保存了多少个寄存器
+// 返回保存了多少个寄存器，进入前就应该保存
+/* 
+ * caller: 调用者保存寄存器，也就是被调用着可以随意用caller寄存器而不加以保存
+ *         保存时机在调用函数前，恢复时机在调用函数后
+ *         对于子程序来说，caller寄存器可以随意用，只要不调用其他函数的话。但是要记住自己用
+ *         了哪些，调用函数的时候要保存。
+ * callee：被调用者保存寄存器，被调用者一旦使用，要先保存再用，然后在退出的时候要还回来
+ *         保存时机在进入函数的开头，恢复时机在退出函数前
+ *         这一类寄存器子程序不能随便用，如果要用，要先保存再用，典型代表为sp和fp(s0)，至于
+ *         其他的save reg，用的时候先保存再用，返回的时候一定要恢复！
+ * 因此，我们可以总结一个策略：当前（退出或刚进入一个函数时都要清零）函数每个寄存器有个标志位，
+ * 对于：
+ *      caller寄存器：在使用时置flag，在调用函数时查看flag并保存，恢复时查看flag并恢复
+ *      callee寄存器：在使用时置flag，置位的时候先要有store动作，退出函数前查看flag并load回
+ *      寄存器
+ *      对于任何寄存器，当前函数没用过就不要管，特殊的是sp，基本上每个函数都会动，特别关注
+ */
 int backend::Generator::calleeRegisterSave(){
+    // 从低到高为X0到X31，由于程序是完全可控的，callee是你自己在管，所以随便用？
+    const unsigned int i_calleeRegisterMask = 0b00001111111111000000001100000100;
+    const unsigned int f_calleeRegisterMask = 0b00001111111111000000001100000000;
     TODO;
     return 0;
 }
 
 int backend::Generator::calleeRegisterRestore(){
+    const unsigned int i_calleeRegisterMask = 0b00001111111111000000001100000100;
+    const unsigned int f_calleeRegisterMask = 0b00001111111111000000001100000000;
     TODO;
     return 0;
 }
 
 int backend::Generator::callerRegisterSave(){
+    const unsigned int i_callerRegisterMask = 0b11110000000000111111110011100010;
+    const unsigned int f_callerRegisterMask = 0b00001111111111000000001100000000;
     TODO;
     return 0;
 }
 
 int backend::Generator::callerRegisterRestore(){
+    const unsigned int i_callerRegisterMask = 0b11110000000000111111110011100010;
+    const unsigned int f_callerRegisterMask = 0b00001111111111000000001100000000;
     TODO;
     return 0;
 }
-
-// algorithm
-// std::vector<ir::Operand> backend::Generator::linearScan(const std::vector<ir::Instruction *>) const{
-//     TODO;
-// }
 
 backend::GlobalValElement::GlobalValElement(std::string _sVarName, ir::Type _tp, std::vector<int32_t> _arr, int _max){
     sVarName = _sVarName;

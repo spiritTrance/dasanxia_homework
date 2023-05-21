@@ -27,6 +27,11 @@ int main(){
     else{
         a = 6;
     }
-    putint(a);
+    for (int i = 1; i <= 100;i++){
+        for (int j = i; j >= 0;j--){
+            int ans = i * j + a / j;
+        }
+    }
+        putint(a);
     return a;
 }

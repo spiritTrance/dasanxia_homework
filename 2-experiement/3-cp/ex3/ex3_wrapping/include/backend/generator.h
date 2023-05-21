@@ -74,7 +74,6 @@ struct Generator {
     void gen_func(ir::Function&);
     void gen_instr(ir::Instruction&);
     void gen_globalVal();   // 生成全局变量段的
-    void gen_globalFunc(ir::Instruction&);   // 全局变量函数的调用
 
     // 跳转相关的标签维护
     void get_ir_flagInfo(std::vector<ir::Instruction *>&);
@@ -94,7 +93,7 @@ struct Generator {
     int callerRegisterRestore();   // 返回保存了多少个寄存器，要求在进入函数前调用
     // void findOperandInRegFile(ir::Operand);
 
-    // algorithm
+    // algorithm FIXME TODO
     // std::vector<ir::Operand> linearScan(const std::vector<ir::Instruction *>) const;
 };
 

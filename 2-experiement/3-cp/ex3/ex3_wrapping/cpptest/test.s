@@ -35,9 +35,37 @@ main:
 	li	a5,6
 	sw	a5,-20(s0)
 .L3:
+	li	a5,1
+	sw	a5,-24(s0)
+.L7:
+	lw	a4,-24(s0)
+	li	a5,100
+	bgt	a4,a5,.L4
+	lw	a5,-24(s0)
+	sw	a5,-28(s0)
+.L6:
+	lw	a5,-28(s0)
+	blt	a5,zero,.L5
+	lw	a4,-24(s0)
+	lw	a5,-28(s0)
+	mul	a4,a4,a5
+	lw	a3,-20(s0)
+	lw	a5,-28(s0)
+	div	a5,a3,a5
+	add	a5,a4,a5
+	sw	a5,-32(s0)
+	lw	a5,-28(s0)
+	addi	a5,a5,-1
+	sw	a5,-28(s0)
+	j	.L6
+.L5:
+	lw	a5,-24(s0)
+	addi	a5,a5,1
+	sw	a5,-24(s0)
+	j	.L7
+.L4:
 	lw	a0,-20(s0)
-	li	a0,b
-	call	putint
+	call	_Z6putinti
 	lw	a5,-20(s0)
 	mv	a0,a5
 	lw	ra,28(sp)
