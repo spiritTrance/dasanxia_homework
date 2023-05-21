@@ -421,6 +421,8 @@ void backend::Generator::gen() {
 void backend::Generator::gen_func(ir::Function& func){
     // 每进入一个块，寄存器caller保存寄存器有效位清空
     // 进入一个函数时，要注意形参列表相关信息的维护（比如op到reg之间的映射！！！）
+    // 需要计算sp的偏移量，并在退出时恢复回来，
+    // 函数的最后，一定是有个jr指令跳出函数！！不是说碰到ir指令的return就寄了！
     fout << func.name << ":"<<endl;     // 标签标注
     // 被调用者保存寄存器
     TODO;
@@ -1071,7 +1073,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             else if (op1.type == Type::Float){
                 rv::rv_inst rvInst;
                 rvInst.op = rv::rvOPCODE::FMOV;
-                rvInst.frd = rv::rvFREG::F10;
+                rvInst.frd = rv::rvFREG::F10;   // a0 返回地址
                 rvInst.frs1 = fgetRs1(op1);
                 rvInst.draw();
             }
@@ -1306,22 +1308,97 @@ int backend::Generator::add_operand(ir::Operand op, uint32_t size){
  *      callee寄存器：在使用时置flag，置位的时候先要有store动作，退出函数前查看flag并load回
  *      寄存器
  *      对于任何寄存器，当前函数没用过就不要管，特殊的是sp，基本上每个函数都会动，特别关注
+ * 
+ * **具体实现时**：我们的策略是，每当一个新变量进来时，就同时在栈空间给其分配一片空间，所以不需
+ *                要另外申请空间。
  */
 int backend::Generator::calleeRegisterSave(){
     // 从低到高为X0到X31，由于程序是完全可控的，callee是你自己在管，所以随便用？
-    const unsigned int i_calleeRegisterMask = 0b00001111111111000000001100000100;
+    // 注意sp我们不予保存
+    // const unsigned int i_calleeRegisterMask = 0b00001111111111000000001100000100;
+    const unsigned int i_calleeRegisterMask = 0b00001111111111000000001100000000;
     const unsigned int f_calleeRegisterMask = 0b00001111111111000000001100000000;
-    TODO;
-    return 0;
+    // 注意保存的变量需要加入stack里面，占位置要反应偏移量的，格式用[]括着
+    // 处理整数寄存器
+    // fp怎么存？你所有需要存的都是要基于改变后的fp？
+    // 考虑刚进入函数时，sp和fp还是上个函数的阶段，那么，我们可以先基于sp存
+    // 存完后改变sp和fp(交给gen_func函数解决，其实在这里就可以解决fp，在gen_func解决sp)
+    // 退出时，先把sp移动到fp处
+    // 然后再基于sp来存储
+    // 完美~
+    for (int i = 0; i < 32; i++){
+        if ((i_calleeRegisterMask >> i) & 1){
+            rv::rv_inst rvInst;
+            rv::rvREG saveReg = rv::rvREG(i);
+            rvInst.op = rv::rvOPCODE::SW;
+            rvInst.rs1 = rv::rvREG::X2;     // sp
+            rvInst.rs2 = saveReg;
+            Operand saveOpd;
+            saveOpd.name = "[" + toGenerateString(saveReg) + "]";
+            rvInst.imm = add_operand(saveOpd);
+            rvInst.draw();
+        }
+    }
+    // 处理浮点数寄存器
+    for (int i = 0; i < 32; i++){
+        if ((f_calleeRegisterMask >> i) & 1){
+            rv::rvFREG saveReg = rv::rvFREG(i);
+            rv::rv_inst rvInst;
+            rvInst.op = rv::rvOPCODE::FSW;
+            rvInst.rs1 = rv::rvREG::X2;     // sp
+            rvInst.frs2 = saveReg;
+            Operand saveOpd;
+            saveOpd.name = "[" + toGenerateString(saveReg) + "]";
+            rvInst.imm = add_operand(saveOpd);
+            rvInst.draw();
+        }
+    }
+    // 处理fp
+    rv::rv_inst rvInst;
+    rvInst.op = rv::rvOPCODE::MOV;
+    rvInst.rd = rv::rvREG::X8;      // fp, 当然是sp的值给fp，才有fp到sp的效果
+    rvInst.rs1 = rv::rvREG::X2;     // sp
+    rvInst.draw();
+    return 24;      // 保存了24个寄存器
 }
 
 int backend::Generator::calleeRegisterRestore(){
-    const unsigned int i_calleeRegisterMask = 0b00001111111111000000001100000100;
+    // 注意sp我们不予保存，sp用addi来计算，在gen_func里面管理
+    // const unsigned int i_calleeRegisterMask = 0b00001111111111000000001100000100;
+    const unsigned int i_calleeRegisterMask = 0b00001111111111000000001100000000;
     const unsigned int f_calleeRegisterMask = 0b00001111111111000000001100000000;
-    TODO;
-    return 0;
+    for (int i = 0; i < 32; i++){
+        if ((i_calleeRegisterMask >> i) & 1){
+            rv::rv_inst rvInst;
+            rv::rvREG restoreReg = rv::rvREG(i);
+            rvInst.op = rv::rvOPCODE::LW;
+            rvInst.rs1 = rv::rvREG::X2;     // sp
+            rvInst.rd = restoreReg;
+            Operand saveOpd;
+            saveOpd.name = "[" + toGenerateString(restoreReg) + "]";
+            rvInst.imm = find_operand(saveOpd);
+            rvInst.draw();
+        }
+    }
+    // 处理浮点数寄存器
+    for (int i = 0; i < 32; i++){
+        if ((f_calleeRegisterMask >> i) & 1){
+            rv::rvFREG restoreReg = rv::rvFREG(i);
+            rv::rv_inst rvInst;
+            rvInst.op = rv::rvOPCODE::FLW;
+            rvInst.rs1 = rv::rvREG::X2;     // sp
+            rvInst.frd = restoreReg;
+            Operand saveOpd;
+            saveOpd.name = "[" + toGenerateString(restoreReg) + "]";
+            rvInst.imm = find_operand(saveOpd);
+            rvInst.draw();
+        }
+    }
+    // 注意sp在此处的读取过程中被恢复，所以不需要另外生成riscv来恢复，退出的最后要恢复sp别忘了
+    return 24;   // 恢复了24个寄存器
 }
 
+// 想一下caller保存和恢复的场景：就在处理call的IR指令时发生，所以上下文信息都不需要变动！
 int backend::Generator::callerRegisterSave(){
     const unsigned int i_callerRegisterMask = 0b11110000000000111111110011100010;
     const unsigned int f_callerRegisterMask = 0b00001111111111000000001100000000;

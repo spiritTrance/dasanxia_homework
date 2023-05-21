@@ -9,6 +9,7 @@
 #include<string>
 #include<vector>
 #include<queue>
+#include<stack>
 #include<fstream>
 
 namespace backend {
@@ -46,6 +47,7 @@ struct Generator {
     std::map<rv::rvREG, ir::Operand> i_reg2opdTable;
     // const parameters
     // reg flag
+    
     unsigned int i_validReg;         // 标识存有数据的寄存器
     unsigned int f_validReg;         // 标识存有数据的寄存器
     unsigned int i_imAtomicComp;     // 标识当前指令要参与计算的寄存器
