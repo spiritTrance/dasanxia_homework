@@ -36,7 +36,7 @@ struct stackVarMap {
 };
 
 struct Generator {
-    ir::Program& program;         // the program to gen
+    const ir::Program& program;         // the program to gen
     std::ofstream& fout;                 // output file
     std::vector<stackVarMap> memvar_Stack;  // 注意是栈式存储，这里我们假设sp总为0，且sp总为调整过后的。
     Generator(ir::Program&, std::ofstream&);

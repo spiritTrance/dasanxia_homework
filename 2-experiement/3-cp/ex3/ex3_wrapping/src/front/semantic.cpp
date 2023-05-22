@@ -173,6 +173,7 @@ frontend::STE frontend::SymbolTable::get_ste(string id, bool isFunc = false) con
             return it->second;
         }
     }
+    std::cout << id << std::endl;
     std::string assertErr = "In frontend::SymbolTable::get_ste: Unexpected id: " + id;
     std::cout << assertErr << std::endl;
     assert(0 && "In frontend::SymbolTable::get_ste: Unexpected id");
