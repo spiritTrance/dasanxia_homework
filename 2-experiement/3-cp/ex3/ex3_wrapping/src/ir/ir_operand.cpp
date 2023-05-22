@@ -19,6 +19,3 @@ bool ir::Operand::operator>(const ir::Operand & opd) const{
     }
     return this->name > opd.name;
 }
-bool ir::Operand::operator=(const ir::Operand & opd) const{
-    return this->name == opd.name && this->name == opd.name;
-}

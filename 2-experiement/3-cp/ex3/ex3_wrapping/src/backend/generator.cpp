@@ -25,11 +25,11 @@ int backend::stackVarMap::find_operand(ir::Operand op){
 
 int backend::stackVarMap::add_operand(ir::Operand op, uint32_t size){
     // 感觉可以全用fp算偏移，然后sp看怎么弄
-    assert(size % 4 != 0 && "Size should be the multiple of 4");
+    assert(size % 4 == 0 && "Size should be the multiple of 4");
     int currSize = stack_table.size() * 4;
     int totSize = currSize + size;
-    stack_table[op] = -totSize;
-    return -totSize;        // 相对于fp来算的话，fp是大地址，那么-fp是小地址，数组的话，正向偏移，和xx一致的。
+    stack_table[op] = totSize;
+    return totSize;        // 相对于fp来算的话，fp是大地址，那么-fp是小地址，数组的话，正向偏移，和xx一致的。
 }
 
 bool backend::Generator::isNewOperand(ir::Operand op){
@@ -464,6 +464,8 @@ void backend::Generator::gen_func(ir::Function& func){
     rvInstSp.imm = -totSpace;
     fout << rvInstSp.draw();
     calleeRegisterRestore();
+    rv::rv_inst rvInstJR;
+    TODO;   // 写返回
 }
 
 void backend::Generator::gen_instr(ir::Instruction& inst){
@@ -1096,9 +1098,9 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 fout << rvInst.draw();
             }
             else{
-                assert(des.type != Type::null && "Unexpeced Return Type!");
+                assert(des.type == Type::null && "Unexpeced Return Type!");
             }
-
+            TODO;       // 处理函数跳转
             calleeRegisterRestore();        // 恢复寄存器
         }
             break;
@@ -1144,7 +1146,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             }
             else{
                 // 注意Ptr的情况没处理，我盲猜不需要处理，应该在IR阶段处理了，遇到了再说吧
-                assert(0 && "Unexpected Type!");
+                assert(op1.type == Type::null && "Unexpected Type!");
             }
         }
             break;

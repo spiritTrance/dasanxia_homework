@@ -53,3 +53,4 @@ add_executable(compiler main.cpp)
 # link
 # every lib should be linked with [compiler]
 target_link_libraries(compiler Backend Tools Front IR jsoncpp)
+# target_link_libraries(compiler Tools Front IR jsoncpp)

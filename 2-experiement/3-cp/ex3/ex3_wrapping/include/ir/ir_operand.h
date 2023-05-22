@@ -24,7 +24,7 @@ struct Operand {
     Operand(std::string = "null", Type = Type::null);
     bool operator<(const ir::Operand &) const;
     bool operator>(const ir::Operand &) const;
-    bool operator=(const ir::Operand &) const;
+    // 修改bug：不要重载等于号
 };
 
 }
