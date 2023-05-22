@@ -1,6 +1,7 @@
 #include "backend/generator.h"
 #include <iostream>
 #include <queue>
+#include <unordered_set>
 #include <assert.h>
 #include <string.h>
 #define TODO assert(0 && "todo");
@@ -83,7 +84,7 @@ void backend::Generator::expireRegData(int regIndex, int caseOp){
             rv_save_Inst.rs2 = reg;                     // 要驱逐的寄存器号
             rv_save_Inst.rs1 = rv::rvREG::X8;           // fp
             rv_save_Inst.imm = offset;
-            rv_save_Inst.draw();
+            fout << rv_save_Inst.draw();
         }
         i_opd2regTable.erase(opd);       // 驱逐到内存就要移除辣
         i_reg2opdTable.erase(reg);
@@ -105,7 +106,7 @@ void backend::Generator::expireRegData(int regIndex, int caseOp){
             rv_save_Inst.frs2 = reg;                     // 要驱逐的寄存器号
             rv_save_Inst.rs1 = rv::rvREG::X8;            // fp
             rv_save_Inst.imm = offset;
-            rv_save_Inst.draw();
+            fout << rv_save_Inst.draw();
         }
         f_opd2regTable.erase(opd);       // 驱逐到内存就要移除辣
         f_reg2opdTable.erase(reg);
@@ -131,7 +132,7 @@ void backend::Generator::loadMemData(int regIndex, ir::Operand op){
             rv_load_inst.frd = reg;
             rv_load_inst.rs1 = rv::rvREG::X8;           // fp
             rv_load_inst.imm = getOffSetFromStackSpace(op);
-            rv_load_inst.draw();
+            fout << rv_load_inst.draw();
         }
         f_validReg |= (1 << regIndex);          // 设置标志位
         f_opd2regTable[op] = reg;
@@ -151,7 +152,7 @@ void backend::Generator::loadMemData(int regIndex, ir::Operand op){
             rv_load_inst.rd = reg;
             rv_load_inst.rs1 = rv::rvREG::X8;       // fp
             rv_load_inst.imm = getOffSetFromStackSpace(op);
-            rv_load_inst.draw();
+            fout << rv_load_inst.draw();
         }
         i_validReg |= (1 << regIndex);          // 设置标志位
         i_opd2regTable[op] = reg;
@@ -414,8 +415,13 @@ rv::rvFREG backend::Generator::fgetRs2(ir::Operand op){
 // generate wrapper function
 // 注意function那个数组的第一个一定是全局变量函数
 void backend::Generator::gen() {
+    // 产生全局变量
     backend::Generator::gen_globalVal();
-    TODO;
+    // 提示进入代码区
+    fout << "\t.text" << endl;
+    for (auto& func: program.functions){
+        backend::Generator::gen_func(func);
+    }
 }
 
 void backend::Generator::gen_func(ir::Function& func){
@@ -423,12 +429,41 @@ void backend::Generator::gen_func(ir::Function& func){
     // 进入一个函数时，要注意形参列表相关信息的维护（比如op到reg之间的映射！！！）
     // 需要计算sp的偏移量，并在退出时恢复回来，
     // 函数的最后，一定是有个jr指令跳出函数！！不是说碰到ir指令的return就寄了！
+    // 初始化标注信息
+    stackVarMap *svm = new stackVarMap();
+    memvar_Stack.push_back(*svm);
+    f_opd2regTable.clear();
+    f_reg2opdTable.clear();
+    i_opd2regTable.clear();
+    i_reg2opdTable.clear();
+    i_validReg = 0;
+    f_validReg = 0;
+    i_imAtomicComp = 0;
+    f_imAtomicComp = 0;
+    // 输出提示信息
+    fout << "\t.globl\t" << func.name << endl;
+    fout << "\t.type\t" << func.name << ",\t@function"<< endl;
     fout << func.name << ":"<<endl;     // 标签标注
     // 被调用者保存寄存器
-    TODO;
+    get_ir_flagInfo(func.InstVec);
+    // 输出标题flag
+    int callerRegSize = calleeRegisterSave() * 4;
+    // 计算sp的移动
+    int totSpace = callerRegSize + getStackSpaceSize(func.InstVec);
+    rv::rv_inst rvInstSp;
+    rvInstSp.op = rv::rvOPCODE::ADDI;
+    rvInstSp.rd = rv::rvREG::X2;
+    rvInstSp.rs1 = rv::rvREG::X2;
+    rvInstSp.imm = totSpace;
+    fout << rvInstSp.draw();
     for (auto inst: func.InstVec){
         gen_instr(*inst);
     }
+    // 恢复sp
+    i_imAtomicComp = 0;
+    rvInstSp.imm = -totSpace;
+    fout << rvInstSp.draw();
+    calleeRegisterRestore();
 }
 
 void backend::Generator::gen_instr(ir::Instruction& inst){
@@ -444,18 +479,6 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
     if (index_flag[ir_stamp]){
         fout << ".L" + std::to_string(index_flag[ir_stamp]) + ":"<< endl;
     }
-    static std::map<std::string,ir::Function*> lib_funcs = {
-        {"getint", new Function("getint", Type::Int)},
-        {"getch", new Function("getch", Type::Int)},
-        {"getfloat", new Function("getfloat", Type::Float)},
-        {"getarray", new Function("getarray", {Operand("arr", Type::IntPtr)}, Type::Int)},
-        {"getfarray", new Function("getfarray", {Operand("arr", Type::FloatPtr)}, Type::Int)},
-        {"putint", new Function("putint", {Operand("i", Type::Int)}, Type::null)},
-        {"putch", new Function("putch", {Operand("i", Type::Int)}, Type::null)},
-        {"putfloat", new Function("putfloat", {Operand("f", Type::Float)}, Type::null)},
-        {"putarray", new Function("putarray", {Operand("n", Type::Int), Operand("arr", Type::IntPtr)}, Type::null)},
-        {"putfarray", new Function("putfarray", {Operand("n", Type::Int), Operand("arr", Type::FloatPtr)}, Type::null)},
-    };
     // 原子计算标志位清空
     i_imAtomicComp = 0;
     f_imAtomicComp = 0;
@@ -479,7 +502,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 inst.rs1 = getRs1(op1);
                 inst.op = rv::rvOPCODE::MOV;
             }
-            inst.draw();
+            fout << inst.draw();
         }
             break;
         case ir::Operator::fdef:
@@ -494,14 +517,14 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst_LI.op = rv::rvOPCODE::LI;
                 inst.rs1 = rvInst_LI.rd = getRd(op1);
                 rvInst_LI.imm = (*(uint32_t*)(&f));
-                rvInst_LI.draw();
+                fout << rvInst_LI.draw();
                 inst.op = rv::rvOPCODE::FMV_W_X;
             }
             else{
                 inst.frs1 = fgetRs1(op1);
                 inst.op = rv::rvOPCODE::FMOV;
             }
-            inst.draw();
+            fout << inst.draw();
         }
             break;
         // arithmetic computing
@@ -526,7 +549,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst.rs2 = getRs2(op2);
                 rvInst.op = rv::rvOPCODE::ADD;
             }
-            rvInst.draw();
+            fout << rvInst.draw();
         }
             break;
         case ir::Operator::addi:
@@ -537,7 +560,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             rvInst.rd = getRd(des);
             rvInst.rs1 = getRs1(op1);
             rvInst.imm = op == Operator::addi ? (uint32_t)std::stoi(op2.name) : -(uint32_t)std::stoi(op2.name);
-            rvInst.draw();
+            fout << rvInst.draw();
         }
             break;
         case ir::Operator::fadd:
@@ -578,15 +601,15 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 // 处理op1
                 rvInst_li.imm = u1;
                 rvInst_ifmov.rs1 = rvInst_li.rd = getRd(op1);
-                rvInst_li.draw();
+                fout << rvInst_li.draw();
                 rvInst.frs1 = rvInst_ifmov.frd = fgetRd(op1);
-                rvInst_li.draw();
+                fout << rvInst_li.draw();
                 // 处理op2
                 rvInst_li.imm = u2;
                 rvInst_ifmov.rs1 = rvInst_li.rd = getRd(op2);
-                rvInst_li.draw();
+                fout << rvInst_li.draw();
                 rvInst.frs1 = rvInst_ifmov.frd = fgetRd(op2);
-                rvInst_li.draw();
+                fout << rvInst_li.draw();
             }
             else if (op1.type == Type::FloatLiteral){
                 float f1 = std::stof(op1.name);
@@ -598,9 +621,9 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 // 处理op1
                 rvInst_li.imm = u1;
                 rvInst_ifmov.rs1 = rvInst_li.rd = getRd(op1);
-                rvInst_li.draw();
+                fout << rvInst_li.draw();
                 rvInst.frs1 = rvInst_ifmov.frd = fgetRd(op1);
-                rvInst_li.draw();
+                fout << rvInst_li.draw();
                 // 得到op2
                 rvInst.frs2 = fgetRs2(op2);
             }
@@ -614,9 +637,9 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 // 处理op2
                 rvInst_li.imm = u2;
                 rvInst_ifmov.rs1 = rvInst_li.rd = getRd(op2);
-                rvInst_li.draw();
+                fout << rvInst_li.draw();
                 rvInst.frs1 = rvInst_ifmov.frd = fgetRd(op2);
-                rvInst_li.draw();
+                fout << rvInst_li.draw();
                 // 得到op1
                 rvInst.frs1 = fgetRs1(op1);
             }
@@ -624,7 +647,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst.frs1 = fgetRs1(op1);
                 rvInst.frs2 = fgetRs2(op2);
             }
-            rvInst.draw();
+            fout << rvInst.draw();
         }
             break;
         case ir::Operator::sub:
@@ -646,14 +669,14 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst.rd = getRd(des);
                 rvInst.rs1 = getRs1(op1);
                 rvInst.imm = -(uint32_t)std::stoi(op2.name);
-                rvInst.draw();
+                fout << rvInst.draw();
             }
             else{
                 rvInst.rs1 = getRs1(op1);
                 rvInst.rs2 = getRs2(op2);
                 rvInst.op = rv::rvOPCODE::SUB;
             }
-            rvInst.draw();
+            fout << rvInst.draw();
         }
             break;
         case ir::Operator::mul:
@@ -674,10 +697,10 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst_li.op = rv::rvOPCODE::LI;
                 rvInst.rs1 = rvInst_li.rd = getRs1(op1);
                 rvInst_li.imm = u1;
-                rvInst_li.draw();
+                fout << rvInst_li.draw();
                 rvInst.rs2 = rvInst_li.rd = getRs2(op2);
                 rvInst_li.imm = u2;
-                rvInst_li.draw();
+                fout << rvInst_li.draw();
             }
             else if (op1.type == Type::IntLiteral){
                 int32_t u1 = std::stoi(op1.name);
@@ -685,7 +708,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst_li.op = rv::rvOPCODE::LI;
                 rvInst.rs1 = rvInst_li.rd = getRs1(op1);
                 rvInst_li.imm = u1;
-                rvInst_li.draw();
+                fout << rvInst_li.draw();
                 rvInst.rs2 = getRs2(op2);
             }
             else if (op2.type == Type::IntLiteral){
@@ -694,14 +717,14 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst_li.op = rv::rvOPCODE::LI;
                 rvInst.rs2 = rvInst_li.rd = getRs2(op2);
                 rvInst_li.imm = u2;
-                rvInst_li.draw();
+                fout << rvInst_li.draw();
                 rvInst.rs1 = getRs1(op1);
             }
             else{
                 rvInst.rs1 = getRs1(op1);
                 rvInst.rs2 = getRs2(op2);
             }
-            rvInst.draw();
+            fout << rvInst.draw();
         }
             break;
         // comparison instruction
@@ -733,10 +756,10 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst_li.op = rv::rvOPCODE::LI;
                 rvInst.rs1 = rvInst_li.rd = getRs1(op1);
                 rvInst_li.imm = u1;
-                rvInst_li.draw();
+                fout << rvInst_li.draw();
                 rvInst.rs2 = rvInst_li.rd = getRs2(op2);
                 rvInst_li.imm = u2;
-                rvInst_li.draw();
+                fout << rvInst_li.draw();
             }
             else if (op1.type == Type::IntLiteral){
                 int32_t u1 = std::stoi(op1.name);
@@ -744,7 +767,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst_li.op = rv::rvOPCODE::LI;
                 rvInst.rs1 = rvInst_li.rd = getRs1(op1);
                 rvInst_li.imm = u1;
-                rvInst_li.draw();
+                fout << rvInst_li.draw();
                 rvInst.rs2 = getRs2(op2);
             }
             else if (op2.type == Type::IntLiteral){
@@ -753,14 +776,14 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst_li.op = rv::rvOPCODE::LI;
                 rvInst.rs2 = rvInst_li.rd = getRs2(op2);
                 rvInst_li.imm = u2;
-                rvInst_li.draw();
+                fout << rvInst_li.draw();
                 rvInst.rs1 = getRs1(op1);
             }
             else{
                 rvInst.rs1 = getRs1(op1);
                 rvInst.rs2 = getRs2(op2);
             }
-            rvInst.draw();
+            fout << rvInst.draw();
         }
             break;
         // logic instruction
@@ -771,7 +794,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             rvInst.rd = getRd(des);
             rvInst.rs1 = getRs1(op1);
             rvInst.rs2 = rv::rvREG::X0;
-            rvInst.draw();
+            fout << rvInst.draw();
         }
             break;
         case ir::Operator::_and:        // 根据文档，必然是int类型
@@ -793,7 +816,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst_li.op = rv::rvOPCODE::LI;
                 rvInst.rs1 = rvInst_li.rd = getRs1(op1);
                 rvInst_li.imm = u1;
-                rvInst_li.draw();
+                fout << rvInst_li.draw();
                 rvInst.imm = u2;
             }
             else if (op1.type == Type::IntLiteral){
@@ -810,7 +833,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst.rs1 = getRs1(op1);
                 rvInst.rs2 = getRs2(op2);
             }
-            rvInst.draw();
+            fout << rvInst.draw();
         }
             break;
         // lw operation and alloc, getptr
@@ -834,7 +857,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     rvInst.rs1 = rvInst.rd;
                     rvInst.imm = 4 * std::stoi(op2.name);
                     rvInst.op = rv::rvOPCODE::FLW;
-                    rvInst.draw();
+                    fout << rvInst.draw();
                 }
                 else if (isInStack(op1)){
                     rvInst.op = rv::rvOPCODE::FLW;
@@ -843,7 +866,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     int arr_base_offset = getOffSetFromStackSpace(op1);
                     int arr_idx_offset = std::stoi(op2.name) * 4;
                     rvInst.imm = arr_base_offset + arr_idx_offset ;
-                    rvInst.draw();
+                    fout << rvInst.draw();
                 }
                 else{
                     assert(0 && "No such a operand!");
@@ -856,7 +879,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     rvInst.rs1 = rvInst.rd;
                     rvInst.imm = 4 * std::stoi(op2.name);
                     rvInst.op = rv::rvOPCODE::LW;
-                    rvInst.draw();
+                    fout << rvInst.draw();
                 }
                 else if (isInStack(op1)){
                     rvInst.op = rv::rvOPCODE::LW;
@@ -865,7 +888,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     int arr_base_offset = getOffSetFromStackSpace(op1);
                     int arr_idx_offset = std::stoi(op2.name) * 4;
                     rvInst.imm = arr_base_offset + arr_idx_offset ;
-                    rvInst.draw();
+                    fout << rvInst.draw();
                 }
                 else{
                     assert(0 && "No such a operand!");
@@ -889,7 +912,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     rvInst.imm = 4 * std::stoi(op2.name);
                     rvInst.op = rv::rvOPCODE::FSW;
                     rvInst.frs2 = fgetRs2(des);
-                    rvInst.draw();
+                    fout << rvInst.draw();
                 }
                 else if (isInStack(op1)){
                     rvInst.op = rv::rvOPCODE::FSW;
@@ -898,7 +921,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     int arr_base_offset = getOffSetFromStackSpace(op1);
                     int arr_idx_offset = std::stoi(op2.name) * 4;
                     rvInst.imm = arr_base_offset + arr_idx_offset ;
-                    rvInst.draw();
+                    fout << rvInst.draw();
                 }
                 else{
                     assert(0 && "No such a operand!");
@@ -913,7 +936,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     rvInst.imm = 4 * std::stoi(op2.name);
                     rvInst.op = rv::rvOPCODE::SW;
                     rvInst.rs2 = getRs2(des);
-                    rvInst.draw();
+                    fout << rvInst.draw();
                 }
                 else if (isInStack(op1)){
                     rvInst.op = rv::rvOPCODE::SW;
@@ -922,7 +945,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     int arr_base_offset = getOffSetFromStackSpace(op1);
                     int arr_idx_offset = std::stoi(op2.name) * 4;
                     rvInst.imm = arr_base_offset + arr_idx_offset;
-                    rvInst.draw();
+                    fout << rvInst.draw();
                 }
                 else{
                     assert(0 && "No such a operand!");
@@ -962,7 +985,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst.op = rv::rvOPCODE::ADDI;
                 rvInst.rs1 = rv::rvREG::X8;
                 rvInst.imm = totOffSet_fp;
-                rvInst.draw();
+                fout << rvInst.draw();
             }
             else{
                 assert(0 && "No such a operand!");
@@ -972,6 +995,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         // function control
         case ir::Operator::call:    // 难度较大，想一下sp指针如何移动？在哪移动？调用前移动好吗？显然不好。但参数如何保存得知道
         {
+            // call的返回值还没处理呢！
             ir::Instruction *instPtr = &inst;
             ir::CallInst* callInstPtr= dynamic_cast<ir::CallInst*>(instPtr);    // callInst 要向下类型转换
             assert(callInstPtr && "Not a callInst.");
@@ -1001,7 +1025,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     rvInst.op = rv::rvOPCODE::LI;
                     rvInst.rd = i_reg_param[intRegCount++];
                     rvInst.imm = std::stoi(paramOpd.name);
-                    rvInst.draw();
+                    fout << rvInst.draw();
                 }
                 else if (paramOpd.type == Type::FloatLiteral){
                     if (floatRegCount >= 8){
@@ -1016,11 +1040,11 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     float f = std::stof(paramOpd.name);
                     rvInst.imm = *(int32_t *)(&f);
                     rvInst_f.frd = f_reg_param[floatRegCount++];
-                    rvInst.draw();
-                    rvInst_f.draw();
+                    fout << rvInst.draw();
+                    fout << rvInst_f.draw();
                 }
                 // 啊，其实全局变量没必要考虑，主要是getRd啥的都处理了
-                else if (paramOpd.type == Type::Float || paramOpd.type == Type::FloatPtr){
+                else if (paramOpd.type == Type::Float){
                     if (floatRegCount >= 8){
                         stackParamList.push_back(paramOpd);
                         continue;
@@ -1029,9 +1053,10 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     rvInst.op = rv::rvOPCODE::FMOV;
                     rvInst.frd = f_reg_param[floatRegCount++];
                     rvInst.frs1 = fgetRs1(paramOpd);
-                    rvInst.draw();
+                    fout << rvInst.draw();
                 }
-                else if (paramOpd.type == Type::Int || paramOpd.type == Type::IntPtr){
+                // 小坑，指针一定是整数类型
+                else if (paramOpd.type == Type::Int || paramOpd.type == Type::IntPtr  || paramOpd.type == Type::FloatPtr){
                     if (intRegCount >= 8){
                         stackParamList.push_back(paramOpd);
                         continue;
@@ -1040,7 +1065,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     rvInst.op = rv::rvOPCODE::MOV;
                     rvInst.rd = i_reg_param[floatRegCount++];
                     rvInst.rs1 = getRs1(paramOpd);
-                    rvInst.draw();
+                    fout << rvInst.draw();
                 }
                 else{
                     assert(0 && "unexpected type!");
@@ -1053,7 +1078,28 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     assert(0 && "Need Process FuncParams which more than 8!");
                 }
             }
-            calleeRegisterRestore();
+            // 此时a0存放着返回值，需要load回寄存器
+            rv::rv_inst rvInst;
+            if (des.type == Type::Int){
+                rvInst.op = rv::rvOPCODE::SW;
+                rvInst.rs1 = rv::rvREG::X8;
+                rvInst.rs2 = rv::rvREG::X10;
+                rvInst.imm = add_operand(des);
+                fout << rvInst.draw();
+            }
+            else if (des.type == Type::Float){
+                rvInst.op = rv::rvOPCODE::FSW;
+                rvInst.op = rv::rvOPCODE::SW;
+                rvInst.rs1 = rv::rvREG::X8;
+                rvInst.frs2 = rv::rvFREG::F10;
+                rvInst.imm = add_operand(des);
+                fout << rvInst.draw();
+            }
+            else{
+                assert(des.type != Type::null && "Unexpeced Return Type!");
+            }
+
+            calleeRegisterRestore();        // 恢复寄存器
         }
             break;
         case ir::Operator::_return:
@@ -1068,21 +1114,21 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst.op = rv::rvOPCODE::MOV;
                 rvInst.rd = rv::rvREG::X10;
                 rvInst.rs1 = getRs1(op1);
-                rvInst.draw();
+                fout << rvInst.draw();
             }
             else if (op1.type == Type::Float){
                 rv::rv_inst rvInst;
                 rvInst.op = rv::rvOPCODE::FMOV;
                 rvInst.frd = rv::rvFREG::F10;   // a0 返回地址
                 rvInst.frs1 = fgetRs1(op1);
-                rvInst.draw();
+                fout << rvInst.draw();
             }
             else if (op1.type == Type::IntLiteral){
                 rv::rv_inst rvInst;
                 rvInst.op = rv::rvOPCODE::LI;
                 rvInst.rd = rv::rvREG::X10;     // a0 返回地址
                 rvInst.imm = std::stoi(op1.name);
-                rvInst.draw();
+                fout << rvInst.draw();
             }
             else if (op1.type == Type::FloatLiteral){
                 rv::rv_inst rvInst;
@@ -1093,8 +1139,8 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 float f = std::stof(op1.name);
                 rvInst.imm = *(int32_t *)(&f);
                 rvInst_f.frd = rv::rvFREG::F10;     // 浮点数的返回寄存器
-                rvInst.draw();
-                rvInst_f.draw();
+                fout << rvInst.draw();
+                fout << rvInst_f.draw();
             }
             else{
                 // 注意Ptr的情况没处理，我盲猜不需要处理，应该在IR阶段处理了，遇到了再说吧
@@ -1122,13 +1168,13 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 if (op1.type == Type::IntLiteral){      // 整数字面量
                     if (std::stoi(op1.name)){   // 满足条件
                         rvInst.op = rv::rvOPCODE::J;
-                        rvInst.draw();
+                        fout << rvInst.draw();
                     }
                 }
                 else if(op1.type == Type::FloatLiteral){    // 浮点数字面量
                     if (std::stof(op1.name)){   // 满足条件
                         rvInst.op = rv::rvOPCODE::J;
-                        rvInst.draw();
+                        fout << rvInst.draw();
                     }
                 }
                 else if (op1.type == Type::Int){
@@ -1145,7 +1191,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             }
             else{       // 无条件跳转
                 rvInst.op = rv::rvOPCODE::J;
-                rvInst.draw();
+                fout << rvInst.draw();
             }
         }
             break;
@@ -1156,7 +1202,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             rvInst.op = rv::rvOPCODE::FCVT_W_S;
             rvInst.rd = getRd(des);
             rvInst.frs1 = fgetRs1(op1);
-            rvInst.draw();
+            fout << rvInst.draw();
         }
             break;
         case ir::Operator::cvt_i2f:
@@ -1165,7 +1211,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             rvInst.op = rv::rvOPCODE::FCVT_S_W;
             rvInst.frd = fgetRd(des);
             rvInst.rs1 = getRs1(op1);
-            rvInst.draw();
+            fout << rvInst.draw();
         }
             break;
         // unuse
@@ -1173,7 +1219,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         {
             rv::rv_inst rvInst;
             rvInst.op = rv::rvOPCODE::NOP;
-            rvInst.draw();
+            fout << rvInst.draw();
         }
             break;
         default:
@@ -1227,11 +1273,13 @@ void backend::Generator::gen_globalVal(){
 }
 
 void backend::Generator::get_ir_flagInfo(std::vector<ir::Instruction *>& instArr){
+    // 初始化
     ir_stamp = 0;
     while(!flag_q.empty()){
         flag_q.pop();
     }
     memset(index_flag, 0, sizeof(index_flag));
+    // 标注flag
     for (auto& inst: instArr){
         ir_stamp += 1;
         if (inst->op == Operator::_goto){
@@ -1241,6 +1289,7 @@ void backend::Generator::get_ir_flagInfo(std::vector<ir::Instruction *>& instArr
             index_flag[offset + ir_stamp] = goto_flag++;
         }
     }
+    // queue加入flag
     for (auto& inst:instArr){
         if (inst->op == Operator::_goto){
             int offset = std::stoi(inst->des.name);
@@ -1264,7 +1313,7 @@ ir::Operand backend::Generator::getOperandFromStackSpace(ir::Operand opd){
 
 int backend::Generator::getOffSetFromStackSpace(ir::Operand opd){
     int index = memvar_Stack.size() - 1;
-    assert(index - 1 >= 0 && "Invalid men stack size!");
+    assert(index >= 0 && "Invalid men stack size!");
     auto it = memvar_Stack[index].stack_table.find(opd);
     if (it != memvar_Stack[index].stack_table.end()){
         return it->second;
@@ -1277,7 +1326,7 @@ int backend::Generator::getOffSetFromStackSpace(ir::Operand opd){
 
 int backend::Generator::find_operand(ir::Operand op){
     int index = memvar_Stack.size() - 1;
-    assert(index != -1 && "No Such menVar_stack size of 0!");
+    assert(index >= 0 && "No Such menVar_stack size of 0!");
     return memvar_Stack[index].find_operand(op);
 }
 
@@ -1336,7 +1385,7 @@ int backend::Generator::calleeRegisterSave(){
             Operand saveOpd;
             saveOpd.name = "[" + toGenerateString(saveReg) + "]";
             rvInst.imm = add_operand(saveOpd);
-            rvInst.draw();
+            fout << rvInst.draw();
         }
     }
     // 处理浮点数寄存器
@@ -1350,7 +1399,7 @@ int backend::Generator::calleeRegisterSave(){
             Operand saveOpd;
             saveOpd.name = "[" + toGenerateString(saveReg) + "]";
             rvInst.imm = add_operand(saveOpd);
-            rvInst.draw();
+            fout << rvInst.draw();
         }
     }
     // 处理fp
@@ -1358,7 +1407,7 @@ int backend::Generator::calleeRegisterSave(){
     rvInst.op = rv::rvOPCODE::MOV;
     rvInst.rd = rv::rvREG::X8;      // fp, 当然是sp的值给fp，才有fp到sp的效果
     rvInst.rs1 = rv::rvREG::X2;     // sp
-    rvInst.draw();
+    fout << rvInst.draw();
     return 24;      // 保存了24个寄存器
 }
 
@@ -1377,7 +1426,7 @@ int backend::Generator::calleeRegisterRestore(){
             Operand saveOpd;
             saveOpd.name = "[" + toGenerateString(restoreReg) + "]";
             rvInst.imm = find_operand(saveOpd);
-            rvInst.draw();
+            fout << rvInst.draw();
         }
     }
     // 处理浮点数寄存器
@@ -1391,7 +1440,7 @@ int backend::Generator::calleeRegisterRestore(){
             Operand saveOpd;
             saveOpd.name = "[" + toGenerateString(restoreReg) + "]";
             rvInst.imm = find_operand(saveOpd);
-            rvInst.draw();
+            fout << rvInst.draw();
         }
     }
     // 注意sp在此处的读取过程中被恢复，所以不需要另外生成riscv来恢复，退出的最后要恢复sp别忘了
@@ -1399,19 +1448,86 @@ int backend::Generator::calleeRegisterRestore(){
 }
 
 // 想一下caller保存和恢复的场景：就在处理call的IR指令时发生，所以上下文信息都不需要变动！
+// 所有要存的变量，在加载进寄存器的时候都保存了！所以不需要另外开空间，直接退回到相应地方就行
 int backend::Generator::callerRegisterSave(){
     const unsigned int i_callerRegisterMask = 0b11110000000000111111110011100010;
     const unsigned int f_callerRegisterMask = 0b00001111111111000000001100000000;
-    TODO;
-    return 0;
+    int regSaveCount = 0;
+    for (int i = 0; i < 32; i++){
+        if (((i_callerRegisterMask >> i) & 1) && ((i_validReg >> i) & 1)){
+            regSaveCount++;
+            rv::rv_inst rvInst;
+            rv::rvREG saveReg = rv::rvREG(i);
+            rvInst.op = rv::rvOPCODE::SW;
+            rvInst.rs1 = rv::rvREG::X8;         // fp
+            rvInst.rs2 = saveReg;
+            ir::Operand opd = i_reg2opdTable[saveReg];
+            rvInst.imm = find_operand(opd);
+            fout << rvInst.draw();
+        }
+    }
+    // 处理浮点数寄存器
+    for (int i = 0; i < 32; i++){
+        if (((f_callerRegisterMask >> i) & 1) && ((f_validReg >> i) & 1)){
+            regSaveCount++;
+            rv::rv_inst rvInst;
+            rv::rvFREG saveReg = rv::rvFREG(i);
+            rvInst.op = rv::rvOPCODE::FSW;
+            rvInst.rs1 = rv::rvREG::X8;
+            rvInst.frs2 = saveReg;
+            ir::Operand opd = f_reg2opdTable[saveReg];
+            rvInst.imm = find_operand(opd);
+            fout << rvInst.draw();
+        }
+    }
+    return regSaveCount;
 }
 
 int backend::Generator::callerRegisterRestore(){
     const unsigned int i_callerRegisterMask = 0b11110000000000111111110011100010;
     const unsigned int f_callerRegisterMask = 0b00001111111111000000001100000000;
-    TODO;
-    return 0;
+    int restoreRegCount = 0;
+    for (int i = 0; i < 32; i++){
+        if (((i_callerRegisterMask >> i) & 1) && ((i_validReg >> i) & 1)){
+            // call指令
+            restoreRegCount++;
+            rv::rv_inst rvInst;
+            rv::rvREG restoreReg = rv::rvREG(i);
+            rvInst.op = rv::rvOPCODE::LW;
+            rvInst.rs1 = rv::rvREG::X8;     // fp
+            rvInst.rd = restoreReg;
+            ir::Operand opd = i_reg2opdTable[restoreReg];
+            rvInst.imm = find_operand(opd);
+            fout << rvInst.draw();
+        }
+    }
+    // 处理浮点数寄存器
+    for (int i = 0; i < 32; i++){
+        if (((f_callerRegisterMask >> i) & 1) && ((f_validReg >> i) & 1)){
+            restoreRegCount++;
+            rv::rv_inst rvInst;
+            rv::rvFREG restoreReg = rv::rvFREG(i);
+            rvInst.op = rv::rvOPCODE::FLW;
+            rvInst.rs1 = rv::rvREG::X8;
+            rvInst.frd = restoreReg;
+            ir::Operand opd = f_reg2opdTable[restoreReg];
+            rvInst.imm = find_operand(opd);
+            fout << rvInst.draw();
+        }
+    }
+    return restoreRegCount;
 }
+
+int backend::Generator::getStackSpaceSize(std::vector<ir::Instruction *> & func){
+    std::unordered_set<ir::Operand> varSet;
+    for (auto& i: func){
+        varSet.insert(i->des);
+        varSet.insert(i->op1);
+        varSet.insert(i->op2);
+    }
+    return varSet.size() * 4;
+}
+
 
 backend::GlobalValElement::GlobalValElement(std::string _sVarName, ir::Type _tp, std::vector<int32_t> _arr, int _max){
     sVarName = _sVarName;

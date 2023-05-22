@@ -36,7 +36,7 @@ struct stackVarMap {
 };
 
 struct Generator {
-    const ir::Program& program;         // the program to gen
+    ir::Program& program;         // the program to gen
     std::ofstream& fout;                 // output file
     std::vector<stackVarMap> memvar_Stack;  // 注意是栈式存储，这里我们假设sp总为0，且sp总为调整过后的。
     Generator(ir::Program&, std::ofstream&);
@@ -80,6 +80,7 @@ struct Generator {
     // 跳转相关的标签维护
     void get_ir_flagInfo(std::vector<ir::Instruction *>&);
     // 获取栈中的Operand
+    // FIXME: 删除这两个函数，功能和find_operand重叠
     ir::Operand getOperandFromStackSpace(ir::Operand);
     int getOffSetFromStackSpace(ir::Operand);
 
@@ -94,6 +95,8 @@ struct Generator {
     int callerRegisterSave();
     int callerRegisterRestore();   // 返回保存了多少个寄存器，要求在进入函数前调用
     // void findOperandInRegFile(ir::Operand);
+
+    int getStackSpaceSize(std::vector<ir::Instruction *> &);
 
     // algorithm FIXME TODO
     // std::vector<ir::Operand> linearScan(const std::vector<ir::Instruction *>) const;
