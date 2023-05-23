@@ -4,6 +4,7 @@
 #include <set>
 #include <assert.h>
 #include <string.h>
+#include <bitset>   // debug
 #define TODO assert(0 && "todo");
 #define endl "\n"
 
@@ -142,7 +143,7 @@ void backend::Generator::loadMemData(int regIndex, ir::Operand op){
     }
     else if (op.type == Type::IntPtr || op.type == Type::FloatPtr || op.type == Type::Int || op.type == Type::IntLiteral){
         rv::rvREG reg = rv::rvREG(regIndex);
-        assert(!(i_validReg >> regIndex) && "Not a empty register!");
+        assert(!((i_validReg >> regIndex) & 1) && "Not a empty register!");
         if (isGlobalVar(op)){   // 全局变量，约定X7放地址
             fout<<"\t"<<"lui\t"<<toGenerateString(rv::rvREG::X7)<<","<<"\%hi("<<op.name<<")"<<endl;
             fout<<"\t"<<"lw\t"<<toGenerateString(reg)<<","<<"\%lo("<<op.name<<")("<<toGenerateString(rv::rvREG::X7)<<")"<<endl;
@@ -221,6 +222,8 @@ rv::rvREG  backend::Generator::getRd(ir::Operand op){
                 }
                 i_imAtomicComp |= 1 << int(reg);
                 i_validReg |= 1 << int(reg);
+                i_reg2opdTable[reg] = op;
+                i_opd2regTable[op] = reg;
                 ans = reg;
                 break;
             }
@@ -261,6 +264,8 @@ rv::rvREG  backend::Generator::getRs1(ir::Operand op){
                 i_imAtomicComp |= 1 << int(reg);
                 i_validReg |= 1 << int(reg);
                 ans = reg;
+                i_reg2opdTable[reg] = op;
+                i_opd2regTable[op] = reg;
                 break;
             }
         }
@@ -300,6 +305,8 @@ rv::rvREG  backend::Generator::getRs2(ir::Operand op){
                 i_imAtomicComp |= 1 << int(reg);
                 i_validReg |= 1 << int(reg);
                 ans = reg;
+                i_reg2opdTable[reg] = op;
+                i_opd2regTable[op] = reg;
                 break;
             }
         }
@@ -339,6 +346,8 @@ rv::rvFREG backend::Generator::fgetRd(ir::Operand op){
                 f_imAtomicComp |= 1 << int(reg);
                 f_validReg |= 1 << int(reg);
                 ans = reg;
+                f_reg2opdTable[reg] = op;
+                f_opd2regTable[op] = reg;
                 break;
             }
         }
@@ -377,6 +386,8 @@ rv::rvFREG backend::Generator::fgetRs1(ir::Operand op){
                 }
                 f_imAtomicComp |= 1 << int(reg);
                 f_validReg |= 1 << int(reg);
+                f_reg2opdTable[reg] = op;
+                f_opd2regTable[op] = reg;
                 ans = reg;
                 break;
             }
@@ -416,6 +427,8 @@ rv::rvFREG backend::Generator::fgetRs2(ir::Operand op){
                 }
                 f_imAtomicComp |= 1 << int(reg);
                 f_validReg |= 1 << int(reg);
+                f_reg2opdTable[reg] = op;
+                f_opd2regTable[op] = reg;
                 ans = reg;
                 break;
             }
@@ -448,6 +461,7 @@ void backend::Generator::gen_func(ir::Function& func){
     if (!func.InstVec.size()){       // TODO: 过滤空global的情况
         return;
     }
+    cout << "In gen_func: " << func.name << endl;
     stackVarMap *svm = new stackVarMap();
     memvar_Stack.push_back(*svm);
     f_opd2regTable.clear();
@@ -458,6 +472,7 @@ void backend::Generator::gen_func(ir::Function& func){
     f_validReg = 0;
     i_imAtomicComp = 0;
     f_imAtomicComp = 0;
+    ir_stamp = 0;
     // 输出提示信息
     fout << "\t.globl\t" << func.name << endl;
     fout << "\t.type\t" << func.name << ",\t@function"<< endl;
@@ -501,6 +516,9 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
     // 4、仔细思考：全局变量作为源操作数和目的操作数怎么办，全局变量作为参数传进来怎么办（尤其是数组）
     // 5、完蛋
     // TODO DEBUG: 浮点计数器不能采用LI加载常量
+    cout << "In gen_instr: " << ir_stamp << ' ' << inst.draw() << endl;
+    cout << "\ti_validReg: " << std::bitset<sizeof(i_validReg)*8>(i_validReg) << endl;
+    cout << "\tf_validReg: " << std::bitset<sizeof(f_validReg)*8>(f_validReg) << endl;
     ir_stamp += 1;
     if (index_flag[ir_stamp]){
         fout << ".L" + std::to_string(index_flag[ir_stamp]) + ":"<< endl;
@@ -1139,6 +1157,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             // a0和a1是caller寄存器不是callee，返回时只读回来callee，所以不用怕
             rv::rv_inst rvInst;
             // 注意浮点数的返回值的存储地址
+            std::cout << "In return: "<<op1.name<<' '<<toString(op1.type)<<endl;
             if (op1.type == Type::Int){
                 rv::rv_inst rvInst;
                 rvInst.op = rv::rvOPCODE::MOV;
@@ -1327,6 +1346,8 @@ void backend::Generator::get_ir_flagInfo(std::vector<ir::Instruction *>& instArr
             flag_q.push(index_flag[queryIndex]);
         }
     }
+    // 退出前的stamp要清空
+    ir_stamp = 0;
 }
 
 ir::Operand backend::Generator::getOperandFromStackSpace(ir::Operand opd){
@@ -1349,6 +1370,7 @@ int backend::Generator::getOffSetFromStackSpace(ir::Operand opd){
         return it->second;
     }
     else{
+        cout << "In getOffsetFromStackSpace: " << opd.name << endl;
         assert(0 && "Inexisted stack varaiable!");
     }
 }
@@ -1415,6 +1437,7 @@ int backend::Generator::calleeRegisterSave(){
             rvInst.rs2 = saveReg;
             Operand saveOpd;
             saveOpd.name = "[" + toGenerateString(saveReg) + "]";
+            saveOpd.type = Type::Int;
             rvInst.imm = add_operand(saveOpd);
             fout << rvInst.draw();
         }
@@ -1429,6 +1452,7 @@ int backend::Generator::calleeRegisterSave(){
             rvInst.frs2 = saveReg;
             Operand saveOpd;
             saveOpd.name = "[" + toGenerateString(saveReg) + "]";
+            saveOpd.type = Type::Float;
             rvInst.imm = add_operand(saveOpd);
             fout << rvInst.draw();
         }
@@ -1456,6 +1480,7 @@ int backend::Generator::calleeRegisterRestore(){
             rvInst.rd = restoreReg;
             Operand saveOpd;
             saveOpd.name = "[" + toGenerateString(restoreReg) + "]";
+            saveOpd.type = Type::Int;
             rvInst.imm = find_operand(saveOpd);
             fout << rvInst.draw();
         }
@@ -1470,6 +1495,7 @@ int backend::Generator::calleeRegisterRestore(){
             rvInst.frd = restoreReg;
             Operand saveOpd;
             saveOpd.name = "[" + toGenerateString(restoreReg) + "]";
+            saveOpd.type = Type::Int;
             rvInst.imm = find_operand(saveOpd);
             fout << rvInst.draw();
         }
