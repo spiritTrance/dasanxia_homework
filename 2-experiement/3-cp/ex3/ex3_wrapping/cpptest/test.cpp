@@ -17,21 +17,10 @@
 //     int c = 1 - b;
 //     return c;
 // }
-void putint(int a);
-int b = 9;
+void func(){
+    int a = 2;
+}
 int main(){
-    int a = 9;
-    if (a == 8){
-        a = 8;
-    }
-    else{
-        a = 6;
-    }
-    for (int i = 1; i <= 100;i++){
-        for (int j = i; j >= 0;j--){
-            int ans = i * j + a / j;
-        }
-    }
-        putint(a);
-    return a;
+    func();
+    return 0;
 }

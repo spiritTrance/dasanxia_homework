@@ -18,7 +18,7 @@ std::string rv::toGenerateString(rv::rvREG r){
     case rv::rvREG::X5: return "t0";
     case rv::rvREG::X6: return "t1";
     case rv::rvREG::X7: return "t2";
-    case rv::rvREG::X8: return "s0";        // maybe fp
+    case rv::rvREG::X8: return "fp";        // maybe fp
     case rv::rvREG::X9: return "s1";
     case rv::rvREG::X10: return "a0";
     case rv::rvREG::X11: return "a1";

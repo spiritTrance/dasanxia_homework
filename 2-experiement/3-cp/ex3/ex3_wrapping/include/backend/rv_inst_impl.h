@@ -10,7 +10,7 @@ struct rv_inst {
     rvFREG frd, frs1, frs2;         // operands of rv float inst
     rvOPCODE op;                // opcode of rv inst
     
-    uint32_t imm;               // optional, in immediate inst
+    int32_t imm;               // optional, in immediate inst
     std::string label;          // optional, in beq/jarl inst
 
     std::string draw() const;

@@ -32,7 +32,7 @@ struct stackVarMap {
      * @param[in] size: the space needed(in byte)
      * @return the offset
     */
-    int add_operand(ir::Operand, uint32_t size = 4);
+    int add_operand(ir::Operand, int32_t size = 4);
 };
 
 struct Generator {
@@ -85,7 +85,7 @@ struct Generator {
     int getOffSetFromStackSpace(ir::Operand);
 
     int find_operand(ir::Operand);
-    int add_operand(ir::Operand, uint32_t size = 4);    // 栈空间里面分配空间
+    int add_operand(ir::Operand, int32_t size = 4);    // 栈空间里面分配空间
 
     // // 寄存器管理
     // 进入一个函数首先调用callee寄存器
