@@ -20,6 +20,7 @@ using std::cout;
 backend::Generator::Generator(ir::Program& p, std::ofstream& f): program(p), fout(f) {}
 
 int backend::stackVarMap::find_operand(ir::Operand op){
+    // cout << "In find_operand: " << op.name <<' '<<stack_table[op]<< endl;
     assert(stack_table.find(op) != stack_table.end() && "No such a operand!");
     return stack_table[op];
 }
@@ -30,6 +31,7 @@ int backend::stackVarMap::add_operand(ir::Operand op, int32_t size){
     int currSize = stack_table.size() * 4;
     int totSize = -(currSize + size);
     stack_table[op] = totSize;
+    // cout << "In add_operand: " << op.name << ' ' << totSize << endl;
     return totSize;        // 相对于fp来算的话，fp是大地址，那么-fp是小地址，数组的话，正向偏移，和xx一致的。
 }
 
@@ -1378,16 +1380,19 @@ int backend::Generator::getOffSetFromStackSpace(ir::Operand opd){
 
 int backend::Generator::find_operand(ir::Operand op){
     int index = memvar_Stack.size() - 1;
+    // cout << "In find_operand: " << index << endl;
     assert(index >= 0 && "No Such menVar_stack size of 0!");
     return memvar_Stack[index].find_operand(op);
 }
 
 int backend::Generator::add_operand(ir::Operand op, int32_t size){
     int index = memvar_Stack.size() - 1;
+    // cout << "In add_operand: " << op.name << ' '<<index<<endl;
     assert(index >= 0 && "No Such menVar_stack size of 0!");
     // cout << "In add_pod: " << index << endl;
     auto it = memvar_Stack[index].stack_table.find(op);
     if (it != memvar_Stack[index].stack_table.end()){       // 已经分配过了
+        cout << "In Operand: Already Allocated." << endl;
         return memvar_Stack[index].stack_table[op];
     }
     return memvar_Stack[index].add_operand(op);
@@ -1495,7 +1500,7 @@ int backend::Generator::calleeRegisterRestore(){
             rvInst.frd = restoreReg;
             Operand saveOpd;
             saveOpd.name = "[" + toGenerateString(restoreReg) + "]";
-            saveOpd.type = Type::Int;
+            saveOpd.type = Type::Float;
             rvInst.imm = find_operand(saveOpd);
             fout << rvInst.draw();
         }
