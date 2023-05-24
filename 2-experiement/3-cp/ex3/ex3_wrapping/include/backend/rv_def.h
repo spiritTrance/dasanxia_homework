@@ -42,8 +42,7 @@ enum class rvREG {
     X31,        // t6
     X32,        // fail
 };
-std::string toDebugString(rvREG r);  // implement this in ur own way
-std::string toGenerateString(rvREG r);  // implement this in ur own way
+std::string toString(rvREG r);  // implement this in ur own way
 
 enum class rvFREG {
     F0,         // ft0
@@ -80,8 +79,7 @@ enum class rvFREG {
     F31,        // ft11
     F32,        // fail, which means the operand is expired to memory
 };
-std::string toDebugString(rvFREG r);  
-std::string toGenerateString(rvFREG r);  
+std::string toString(rvFREG r);  
 
 // rv32i instructions
 // add instruction u need here!

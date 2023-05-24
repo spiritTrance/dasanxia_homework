@@ -1,3 +1,5 @@
+#include "backend/rv_inst_impl.h"
+#include"backend/rv_def.h"
 #include "backend/generator.h"
 #include <iostream>
 #include <queue>
@@ -75,10 +77,10 @@ void backend::Generator::expireRegData(int regIndex, int caseOp){
     if (caseOp == 0){   // 整数
         rv::rvREG reg = rv::rvREG(regIndex);
         Operand opd = i_reg2opdTable[reg];
-        cout << "In expireRegData: " << toGenerateString(rv::rvREG(regIndex))<<' '<<opd.name << endl;
+        // cout << "In expireRegData: " << toString(rv::rvREG(regIndex))<<' '<<opd.name << endl;
         if (isGlobalVar(opd)){      // 全局变量，约定X7用来存储地址（包括浮点数也是）
-            fout<<"\t"<<"lui\t"<<toGenerateString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
-            fout<<"\t"<<"sw\t"<<toGenerateString(reg)<<","<<"\%lo("<<opd.name<<")("<<toGenerateString(rv::rvREG::X7)<<")"<<endl;
+            fout<<"\t"<<"lui\t"<<toString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
+            fout<<"\t"<<"sw\t"<<toString(reg)<<","<<"\%lo("<<opd.name<<")("<<toString(rv::rvREG::X7)<<")"<<endl;
         }
         else{
             // 写回到寄存器，注意判断驱逐的是局部变量还是全局变量
@@ -97,10 +99,10 @@ void backend::Generator::expireRegData(int regIndex, int caseOp){
     else if(caseOp == 1){    //浮点数
         rv::rvFREG reg = rv::rvFREG(regIndex);
         Operand opd = f_reg2opdTable[reg];
-        cout << "In expireRegData: " << toGenerateString(rv::rvFREG(regIndex))<<' '<<opd.name << endl;
+        // cout << "In expireRegData: " << toString(rv::rvFREG(regIndex))<<' '<<opd.name << endl;
         if (isGlobalVar(opd)){
-            fout<<"\t"<<"lui\t"<<toGenerateString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
-            fout<<"\t"<<"fsw\t"<<toGenerateString(reg)<<","<<"\%lo("<<opd.name<<")("<<toGenerateString(rv::rvREG::X7)<<")"<<endl;
+            fout<<"\t"<<"lui\t"<<toString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
+            fout<<"\t"<<"fsw\t"<<toString(reg)<<","<<"\%lo("<<opd.name<<")("<<toString(rv::rvREG::X7)<<")"<<endl;
             f_validReg &= ~(1 << regIndex);          // 掩蔽标志位
             f_reg2opdTable.erase(reg);
         }
@@ -123,13 +125,13 @@ void backend::Generator::expireRegData(int regIndex, int caseOp){
 }       // 将寄存器里面的值移回到内存，注意可能是全局变量
 
 void backend::Generator::loadMemData(int regIndex, ir::Operand op){
-    cout << "In loadMemdata: " << op.name << ' '<<toGenerateString(rv::rvREG(regIndex))<< ' '<<toGenerateString(rv::rvFREG(regIndex))<<' '<<toString(op.type)<<endl;
+    // cout << "In loadMemdata: " << op.name << ' '<<toString(rv::rvREG(regIndex))<< ' '<<toString(rv::rvFREG(regIndex))<<' '<<toString(op.type)<<endl;
     if (op.type == Type::Float  || op.type == Type::FloatLiteral){
         rv::rvFREG reg = rv::rvFREG(regIndex);
         assert(!(f_validReg >> regIndex) && "Not a empty register!");
         if (isGlobalVar(op)){   // 全局变量，仍然约定X7存地址
-            fout<<"\t"<<"lui\t"<<toGenerateString(rv::rvREG::X7)<<","<<"\%hi("<<op.name<<")"<<endl;
-            fout<<"\t"<<"flw\t"<<toGenerateString(reg)<<","<<"\%lo("<<op.name<<")("<<toGenerateString(rv::rvREG::X7)<<")"<<endl;
+            fout<<"\t"<<"lui\t"<<toString(rv::rvREG::X7)<<","<<"\%hi("<<op.name<<")"<<endl;
+            fout<<"\t"<<"flw\t"<<toString(reg)<<","<<"\%lo("<<op.name<<")("<<toString(rv::rvREG::X7)<<")"<<endl;
         }       // 局部变量
         else{
             // 读取进来
@@ -148,8 +150,8 @@ void backend::Generator::loadMemData(int regIndex, ir::Operand op){
         rv::rvREG reg = rv::rvREG(regIndex);
         assert(!((i_validReg >> regIndex) & 1) && "Not a empty register!");
         if (isGlobalVar(op)){   // 全局变量，约定X7放地址
-            fout<<"\t"<<"lui\t"<<toGenerateString(rv::rvREG::X7)<<","<<"\%hi("<<op.name<<")"<<endl;
-            fout<<"\t"<<"lw\t"<<toGenerateString(reg)<<","<<"\%lo("<<op.name<<")("<<toGenerateString(rv::rvREG::X7)<<")"<<endl;
+            fout<<"\t"<<"lui\t"<<toString(rv::rvREG::X7)<<","<<"\%hi("<<op.name<<")"<<endl;
+            fout<<"\t"<<"lw\t"<<toString(reg)<<","<<"\%lo("<<op.name<<")("<<toString(rv::rvREG::X7)<<")"<<endl;
         }
         else{
             // 读取进来
@@ -476,7 +478,7 @@ void backend::Generator::gen_func(ir::Function& func){
     if (!func.InstVec.size()){       // TODO: 过滤空global的情况
         return;
     }
-    cout << "In gen_func: " << func.name << endl;
+    // cout << "In gen_func: " << func.name << endl;
     stackVarMap *svm = new stackVarMap();
     memvar_Stack.push_back(*svm);
     f_opd2regTable.clear();
@@ -516,16 +518,16 @@ void backend::Generator::gen_func(ir::Function& func){
         rv::rvREG reg = it->first;
         const Operand &opd = it->second;
         if (isGlobalVar(opd)){
-            fout<<"\t"<<"lui\t"<<toGenerateString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
-            fout<<"\t"<<"sw\t"<<toGenerateString(reg)<<","<<"\%lo("<<opd.name<<")("<<toGenerateString(rv::rvREG::X7)<<")"<<endl;
+            fout<<"\t"<<"lui\t"<<toString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
+            fout<<"\t"<<"sw\t"<<toString(reg)<<","<<"\%lo("<<opd.name<<")("<<toString(rv::rvREG::X7)<<")"<<endl;
         }
     }
     for (auto it = f_reg2opdTable.begin(); it != f_reg2opdTable.end(); it++){
         rv::rvFREG reg = it->first;
         const Operand &opd = it->second;
         if (isGlobalVar(opd)){
-            fout<<"\t"<<"lui\t"<<toGenerateString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
-            fout<<"\t"<<"sw\t"<<toGenerateString(reg)<<","<<"\%lo("<<opd.name<<")("<<toGenerateString(rv::rvREG::X7)<<")"<<endl;
+            fout<<"\t"<<"lui\t"<<toString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
+            fout<<"\t"<<"sw\t"<<toString(reg)<<","<<"\%lo("<<opd.name<<")("<<toString(rv::rvREG::X7)<<")"<<endl;
         }
     }
     // 恢复寄存器
@@ -550,9 +552,9 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
     // 4、仔细思考：全局变量作为源操作数和目的操作数怎么办，全局变量作为参数传进来怎么办（尤其是数组）
     // 5、完蛋
     // TODO DEBUG: 浮点计数器不能采用LI加载常量
-    cout << "In gen_instr: " << ir_stamp << ' ' << inst.draw() << endl;
-    cout << "\ti_validReg: " << std::bitset<sizeof(i_validReg)*8>(i_validReg) << endl;
-    cout << "\tf_validReg: " << std::bitset<sizeof(f_validReg)*8>(f_validReg) << endl;
+    // cout << "In gen_instr: " << ir_stamp << ' ' << inst.draw() << endl;
+    // cout << "\ti_validReg: " << std::bitset<sizeof(i_validReg)*8>(i_validReg) << endl;
+    // cout << "\tf_validReg: " << std::bitset<sizeof(f_validReg)*8>(f_validReg) << endl;
     ir_stamp += 1;
     if (index_flag[ir_stamp]){
         fout << ".L" + std::to_string(index_flag[ir_stamp]) + ":"<< endl;
@@ -931,8 +933,8 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             rv::rv_inst rvInst;
             if (op1.type == Type::FloatPtr){
                 if (isGlobalVar(op1)){      // 全局变量
-                    fout<<"\t"<<"lui\t"<<toGenerateString(rvInst.rd)<<","<<"\%hi("<<op1.name<<")"<<endl;
-                    fout<<"\t"<<"addi\t"<<toGenerateString(rvInst.rd)<<","<<toGenerateString(rvInst.rd)<<","<<"\%lo("<<op1.name<<")"<<endl;     // arrName base addr
+                    fout<<"\t"<<"lui\t"<<toString(rvInst.rd)<<","<<"\%hi("<<op1.name<<")"<<endl;
+                    fout<<"\t"<<"addi\t"<<toString(rvInst.rd)<<","<<toString(rvInst.rd)<<","<<"\%lo("<<op1.name<<")"<<endl;     // arrName base addr
                     // 此时rd存的是数组基址
                     rvInst.rs1 = rvInst.rd;
                     rvInst.imm = 4 * std::stoi(op2.name);
@@ -954,8 +956,8 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             }
             else if (op1.type == Type::IntPtr){
                 if (isGlobalVar(op1)){
-                    fout<<"\t"<<"lui\t"<<toGenerateString(rvInst.rd)<<","<<"\%hi("<<op1.name<<")"<<endl;
-                    fout<<"\t"<<"addi\t"<<toGenerateString(rvInst.rd)<<","<<toGenerateString(rvInst.rd)<<","<<"\%lo("<<op1.name<<")"<<endl;     // arrName base addr
+                    fout<<"\t"<<"lui\t"<<toString(rvInst.rd)<<","<<"\%hi("<<op1.name<<")"<<endl;
+                    fout<<"\t"<<"addi\t"<<toString(rvInst.rd)<<","<<toString(rvInst.rd)<<","<<"\%lo("<<op1.name<<")"<<endl;     // arrName base addr
                     rvInst.rs1 = rvInst.rd;
                     rvInst.imm = 4 * std::stoi(op2.name);
                     rvInst.op = rv::rvOPCODE::LW;
@@ -986,8 +988,8 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             if (op1.type == Type::FloatPtr){
                 if (isGlobalVar(op1)){      // 全局变量
                     rvInst.rs1 = getRs1(op1);
-                    fout<<"\t"<<"lui\t"<<toGenerateString(rvInst.rs1)<<","<<"\%hi("<<op1.name<<")"<<endl;
-                    fout<<"\t"<<"addi\t"<<toGenerateString(rvInst.rs1)<<","<<toGenerateString(rvInst.rd)<<","<<"\%lo("<<op1.name<<")"<<endl;     // arrName base addr
+                    fout<<"\t"<<"lui\t"<<toString(rvInst.rs1)<<","<<"\%hi("<<op1.name<<")"<<endl;
+                    fout<<"\t"<<"addi\t"<<toString(rvInst.rs1)<<","<<toString(rvInst.rd)<<","<<"\%lo("<<op1.name<<")"<<endl;     // arrName base addr
                     // 此时rs1存的是数组基址
                     rvInst.imm = 4 * std::stoi(op2.name);
                     rvInst.op = rv::rvOPCODE::FSW;
@@ -1010,8 +1012,8 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             else if (op1.type == Type::IntPtr){
                 if (isGlobalVar(op1)){
                     rvInst.rs1 = getRs1(op1);
-                    fout<<"\t"<<"lui\t"<<toGenerateString(rvInst.rs1)<<","<<"\%hi("<<op1.name<<")"<<endl;
-                    fout<<"\t"<<"addi\t"<<toGenerateString(rvInst.rs1)<<","<<toGenerateString(rvInst.rd)<<","<<"\%lo("<<op1.name<<")"<<endl;     // arrName base addr
+                    fout<<"\t"<<"lui\t"<<toString(rvInst.rs1)<<","<<"\%hi("<<op1.name<<")"<<endl;
+                    fout<<"\t"<<"addi\t"<<toString(rvInst.rs1)<<","<<toString(rvInst.rd)<<","<<"\%lo("<<op1.name<<")"<<endl;     // arrName base addr
                     // 此时rs1存的是数组基址
                     rvInst.imm = 4 * std::stoi(op2.name);
                     rvInst.op = rv::rvOPCODE::SW;
@@ -1054,9 +1056,9 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             rv::rv_inst rvInst;
             if (isGlobalVar(op1)){       // 全局变量
                 rvInst.rd = getRd(des);
-                fout<<"\t"<<"lui\t"<<toGenerateString(rvInst.rd)<<","<<"\%hi("<<op1.name<<")"<<endl;
-                fout<<"\t"<<"addi\t"<<toGenerateString(rvInst.rd)<<","<<toGenerateString(rvInst.rd)<<","<<"\%lo("<<op1.name<<")"<<endl;     // arrName base addr
-                fout<<"\t"<<"addi\t"<<toGenerateString(rvInst.rd)<<","<<toGenerateString(rvInst.rd)<<","<<std::stoi(op2.name) * 4<<endl;    // offset
+                fout<<"\t"<<"lui\t"<<toString(rvInst.rd)<<","<<"\%hi("<<op1.name<<")"<<endl;
+                fout<<"\t"<<"addi\t"<<toString(rvInst.rd)<<","<<toString(rvInst.rd)<<","<<"\%lo("<<op1.name<<")"<<endl;     // arrName base addr
+                fout<<"\t"<<"addi\t"<<toString(rvInst.rd)<<","<<toString(rvInst.rd)<<","<<std::stoi(op2.name) * 4<<endl;    // offset
             }
             else if (isInStack(op1)){   // 局部变量
                 int arr_idx_offset = std::stoi(op2.name) * 4;
@@ -1195,7 +1197,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             // a0和a1是caller寄存器不是callee，返回时只读回来callee，所以不用怕
             rv::rv_inst rvInst;
             // 注意浮点数的返回值的存储地址
-            std::cout << "In return: "<<op1.name<<' '<<toString(op1.type)<<endl;
+            // std::cout << "In return: "<<op1.name<<' '<<toString(op1.type)<<endl;
             if (op1.type == Type::Int){
                 rv::rv_inst rvInst;
                 rvInst.op = rv::rvOPCODE::MOV;
@@ -1408,7 +1410,7 @@ int backend::Generator::getOffSetFromStackSpace(ir::Operand opd){
         return it->second;
     }
     else{
-        cout << "In getOffsetFromStackSpace: " << opd.name << endl;
+        // cout << "In getOffsetFromStackSpace: " << opd.name << endl;
         assert(0 && "Inexisted stack varaiable!");
     }
 }
@@ -1428,7 +1430,7 @@ int backend::Generator::add_operand(ir::Operand op, int32_t size){
     // cout << "In add_pod: " << index << endl;
     auto it = memvar_Stack[index].stack_table.find(op);
     if (it != memvar_Stack[index].stack_table.end()){       // 已经分配过了
-        cout << "In Operand: Already Allocated." << endl;
+        // cout << "In Operand: Already Allocated." << endl;
         return memvar_Stack[index].stack_table[op];
     }
     return memvar_Stack[index].add_operand(op);
@@ -1477,7 +1479,7 @@ int backend::Generator::calleeRegisterSave(){
             rvInst.rs1 = rv::rvREG::X2;     // sp
             rvInst.rs2 = saveReg;
             Operand saveOpd;
-            saveOpd.name = "[" + toGenerateString(saveReg) + "]";
+            saveOpd.name = "[" + toString(saveReg) + "]";
             saveOpd.type = Type::Int;
             rvInst.imm = add_operand(saveOpd);
             fout << rvInst.draw();
@@ -1492,7 +1494,7 @@ int backend::Generator::calleeRegisterSave(){
             rvInst.rs1 = rv::rvREG::X2;     // sp
             rvInst.frs2 = saveReg;
             Operand saveOpd;
-            saveOpd.name = "[" + toGenerateString(saveReg) + "]";
+            saveOpd.name = "[" + toString(saveReg) + "]";
             saveOpd.type = Type::Float;
             rvInst.imm = add_operand(saveOpd);
             fout << rvInst.draw();
@@ -1510,7 +1512,7 @@ int backend::Generator::calleeRegisterSave(){
 int backend::Generator::calleeRegisterRestore(){
     // 注意sp我们不予保存，sp用addi来计算，在gen_func里面管理
     // const unsigned int i_calleeRegisterMask = 0b00001111111111000000001100000100;
-    cout << "Trigger calleeRegSave." << endl;
+    // cout << "Trigger calleeRegSave." << endl;
     const unsigned int i_calleeRegisterMask = 0b00001111111111000000001100000010;
     const unsigned int f_calleeRegisterMask = 0b00001111111111000000001100000000;
     // 想一下，在函数退出的时候，要把全局变量恢复回去哦
@@ -1522,7 +1524,7 @@ int backend::Generator::calleeRegisterRestore(){
             rvInst.rs1 = rv::rvREG::X2;     // sp
             rvInst.rd = restoreReg;
             Operand saveOpd;
-            saveOpd.name = "[" + toGenerateString(restoreReg) + "]";
+            saveOpd.name = "[" + toString(restoreReg) + "]";
             saveOpd.type = Type::Int;
             rvInst.imm = find_operand(saveOpd);
             fout << rvInst.draw();
@@ -1537,7 +1539,7 @@ int backend::Generator::calleeRegisterRestore(){
             rvInst.rs1 = rv::rvREG::X2;     // sp
             rvInst.frd = restoreReg;
             Operand saveOpd;
-            saveOpd.name = "[" + toGenerateString(restoreReg) + "]";
+            saveOpd.name = "[" + toString(restoreReg) + "]";
             saveOpd.type = Type::Float;
             rvInst.imm = find_operand(saveOpd);
             fout << rvInst.draw();
@@ -1560,8 +1562,8 @@ int backend::Generator::callerRegisterSave(){
             rv::rvREG saveReg = rv::rvREG(i);
             ir::Operand opd = i_reg2opdTable[saveReg];
             if (isGlobalVar(opd)){      // 全局变量
-                fout<<"\t"<<"lui\t"<<toGenerateString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
-                fout<<"\t"<<"sw\t"<<toGenerateString(saveReg)<<","<<"\%lo("<<opd.name<<")("<<toGenerateString(rv::rvREG::X7)<<")"<<endl;
+                fout<<"\t"<<"lui\t"<<toString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
+                fout<<"\t"<<"sw\t"<<toString(saveReg)<<","<<"\%lo("<<opd.name<<")("<<toString(rv::rvREG::X7)<<")"<<endl;
             }
             else{
                 rvInst.op = rv::rvOPCODE::SW;
@@ -1580,8 +1582,8 @@ int backend::Generator::callerRegisterSave(){
             rv::rvFREG saveReg = rv::rvFREG(i);
             ir::Operand opd = f_reg2opdTable[saveReg];
             if (isGlobalVar(opd)){      // 全局变量
-                fout<<"\t"<<"lui\t"<<toGenerateString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
-                fout<<"\t"<<"fsw\t"<<toGenerateString(saveReg)<<","<<"\%lo("<<opd.name<<")("<<toGenerateString(rv::rvREG::X7)<<")"<<endl;
+                fout<<"\t"<<"lui\t"<<toString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
+                fout<<"\t"<<"fsw\t"<<toString(saveReg)<<","<<"\%lo("<<opd.name<<")("<<toString(rv::rvREG::X7)<<")"<<endl;
             }
             else{
                 rvInst.op = rv::rvOPCODE::FSW;
@@ -1723,3 +1725,325 @@ void backend::GlobalValElement::draw(std::ofstream& fout){
 // 2 2
 // 3 2
 // 4 2
+
+
+// impl
+std::string rv::rv_inst::draw() const{
+    switch (op)
+    {
+    case rvOPCODE::LW:
+        return "\t" + toString(op) + "\t" + toString(rd) + "," \
+                    + std::to_string(imm) + "(" + toString(rs1) +")\n";
+    case rvOPCODE::SW:
+	// sw	s0,24(sp)
+        return "\t" + toString(op) + "\t" + toString(rs2) + "," \
+                    + std::to_string(imm) + "(" + toString(rs1) +")\n";
+    case rvOPCODE::ADDI:
+    case rvOPCODE::XORI:
+    case rvOPCODE::ORI:
+    case rvOPCODE::ANDI:
+    case rvOPCODE::SLTI:
+    case rvOPCODE::SLTIU:
+	// addi	rd,rs1,imm
+        return "\t" + toString(op) + "\t" + \
+                      toString(rd) + "," + \
+                      toString(rs1) + "," + \
+                      std::to_string(imm) + "\n";
+    case rvOPCODE::JALR:
+    {
+        if (label.length()){
+            return "\t" + toString(op) + "\t" + \
+                        toString(rd) + "," + \
+                        toString(rs1) + "," + \
+                        label + "\n";
+        }
+        return "\t" + toString(op) + "\t" + \
+                      toString(rd) + "," + \
+                      toString(rs1) + "," + \
+                      std::to_string(imm) + "\n";
+    }
+    case rvOPCODE::SLLI:
+    case rvOPCODE::SRLI:
+    // slli rd, rs1, imm with mask
+        return "\t" + toString(op) + "\t" + \
+                      toString(rd) + "," + \
+                      toString(rs1) + "," + \
+                      std::to_string(imm & 0xfffff01f) + "\n";
+    case rvOPCODE::SRAI:
+    // slli rd, rs1, imm with mask
+        return "\t" + toString(op) + "\t" + \
+                      toString(rd) + "," + \
+                      toString(rs1) + "," + \
+                      std::to_string(imm & 0xfffff41f) + "\n";
+    case rvOPCODE::BEQ:
+    case rvOPCODE::BNE:
+    case rvOPCODE::BLT:
+    case rvOPCODE::BGE:
+    case rvOPCODE::BLTU:
+    case rvOPCODE::BGEU:
+    // bne  s1,s2,10
+    {
+        if (label.length()){
+            return "\t" + toString(op) + "\t" + \
+                        toString(rs1) + "," + \
+                        toString(rs2) + "," + \
+                        label + "\n";
+        }
+        return "\t" + toString(op) + "\t" + \
+                      toString(rs1) + "," + \
+                      toString(rs2) + "," + \
+                      std::to_string(imm) + "\n";
+    }
+    case rvOPCODE::JAL:
+    // jal  rd,imm
+    {
+        if (label.length()){
+            return "\t" + toString(op) + "\t" + \
+                        toString(rd) + "," + \
+                        label + "\n";
+        }
+        return "\t" + toString(op) + "\t" + \
+                      toString(rd) + "," + \
+                      std::to_string(imm) + "\n";
+    }
+    // RV32F / D Floating-Point Extensions
+    case rvOPCODE::FLW:
+        return "\t" + toString(op) + "\t" + toString(frd) + "," \
+                    + std::to_string(imm) + "(" + toString(rs1) +")\n";
+    case rvOPCODE::FSW:
+        return "\t" + toString(op) + "\t" + toString(frs2) + "," \
+                    + std::to_string(imm) + "(" + toString(rs1) +")\n";
+    case rvOPCODE::FADD_S:
+    case rvOPCODE::FSUB_S:
+    case rvOPCODE::FMUL_S:
+    case rvOPCODE::FDIV_S:
+    case rvOPCODE::FNEQ_S:
+    case rvOPCODE::FEQ_S:
+    case rvOPCODE::FLT_S:
+    case rvOPCODE::FLE_S:
+        return "\t" + toString(op) + "\t" + \
+                      toString(frd) + "," + \
+                      toString(frs1) + "," + \
+                      toString(frs2) + "\n";
+    case rvOPCODE::FCVT_S_W:        // 整数转浮点数
+        return "\t" + toString(op) + "\t" + \
+                      toString(frd) + "," + \
+                      toString(rs1) + "\n";
+    case rvOPCODE::FCVT_W_S:        // 浮点数转整数
+        return "\t" + toString(op) + "\t" + \
+                      toString(rd) + "," + \
+                      toString(frs1) + "\n";
+    // 加载符号
+    case rvOPCODE::LA:
+        return "\t" + toString(op) + "\t" + \
+                      toString(rd) + "," + \
+                      label + "\n";
+    // 加载常量
+    case rvOPCODE::LI:
+        return "\t" + toString(op) + "\t" + \
+                      toString(rd) + "," + \
+                      std::to_string(imm) + "\n";
+    case rvOPCODE::MOV:
+        return "\t" + toString(op) + "\t" + \
+                      toString(rd) + "," + \
+                      toString(rs1) + "\n";
+    case rvOPCODE::FLI:
+        assert(0 && "Impossible pseudo instruction!");
+    case rvOPCODE::FMOV:
+        return "\t" + toString(op) + "\t" + \
+                      toString(frd) + "," + \
+                      toString(frs1) + "\n";
+    case rvOPCODE::J:
+    {
+        if (label.length()){
+            return "\t" + toString(op) + "\t" + label + "\n";
+        }
+        return "\t" + toString(op) + "\t" + std::to_string(imm) + "\n";
+    }
+    case rvOPCODE::RET:
+        return toString(op) + "\n";
+    case rvOPCODE::CALL:
+        return "\t" + toString(op) + "\t" + label + "\n";
+        // reg move
+    case rv::rvOPCODE::FMV_W_X:
+        return "\t" + toString(op) + "\t" + \
+                      toString(frd) + "," + \
+                      toString(rs1) + "\n";
+    case rv::rvOPCODE::FMV_X_W: 
+        return "\t" + toString(op) + "\t" + \
+                      toString(frs1) + "," + \
+                      toString(rd) + "\n";
+    case rv::rvOPCODE::NOP:
+        return "\tnop\t\n";
+    default:
+    // integer for default, e.g.add rd,rs1,rs2
+        return "\t" + toString(op) + "\t" + \
+                      toString(rd) + "," + \
+                      toString(rs1) + "," + \
+                      toString(rs2) + "\n";
+    }
+}
+
+//rv def
+
+
+std::string rv::toString(rv::rvREG r){
+    switch (r)
+    {
+    case rv::rvREG::X0: return "zero";
+    case rv::rvREG::X1: return "ra";
+    case rv::rvREG::X2: return "sp";
+    case rv::rvREG::X3: return "gp";
+    case rv::rvREG::X4: return "tp";
+    case rv::rvREG::X5: return "t0";
+    case rv::rvREG::X6: return "t1";
+    case rv::rvREG::X7: return "t2";
+    case rv::rvREG::X8: return "fp";        // maybe fp
+    case rv::rvREG::X9: return "s1";
+    case rv::rvREG::X10: return "a0";
+    case rv::rvREG::X11: return "a1";
+    case rv::rvREG::X12: return "a2";
+    case rv::rvREG::X13: return "a3";
+    case rv::rvREG::X14: return "a4";
+    case rv::rvREG::X15: return "a5";
+    case rv::rvREG::X16: return "a6";
+    case rv::rvREG::X17: return "a7";
+    case rv::rvREG::X18: return "s2";
+    case rv::rvREG::X19: return "s3";
+    case rv::rvREG::X20: return "s4";
+    case rv::rvREG::X21: return "s5";
+    case rv::rvREG::X22: return "s6";
+    case rv::rvREG::X23: return "s7";
+    case rv::rvREG::X24: return "s8";
+    case rv::rvREG::X25: return "s9";
+    case rv::rvREG::X26: return "s10";
+    case rv::rvREG::X27: return "s11";
+    case rv::rvREG::X28: return "t3";
+    case rv::rvREG::X29: return "t4";
+    case rv::rvREG::X30: return "t5";
+    case rv::rvREG::X31: return "t6";
+    
+    default:
+        assert(0 && "Unexpected rvREG!");
+        break;
+    }
+}
+
+
+std::string rv::toString(rv::rvFREG r){
+    switch (r)
+    {
+    case rv::rvFREG::F0: return "ft0";
+    case rv::rvFREG::F1: return "ft1";
+    case rv::rvFREG::F2: return "ft2";
+    case rv::rvFREG::F3: return "ft3";
+    case rv::rvFREG::F4: return "ft4";
+    case rv::rvFREG::F5: return "ft5";
+    case rv::rvFREG::F6: return "ft6";
+    case rv::rvFREG::F7: return "ft7";
+    case rv::rvFREG::F8: return "fs0";
+    case rv::rvFREG::F9: return "fs1";
+    case rv::rvFREG::F10: return "fa0";
+    case rv::rvFREG::F11: return "fa1";
+    case rv::rvFREG::F12: return "fa2";
+    case rv::rvFREG::F13: return "fa3";
+    case rv::rvFREG::F14: return "fa4";
+    case rv::rvFREG::F15: return "fa5";
+    case rv::rvFREG::F16: return "fa6";
+    case rv::rvFREG::F17: return "fa7";
+    case rv::rvFREG::F18: return "fs2";
+    case rv::rvFREG::F19: return "fs3";
+    case rv::rvFREG::F20: return "fs4";
+    case rv::rvFREG::F21: return "fs5";
+    case rv::rvFREG::F22: return "fs6";
+    case rv::rvFREG::F23: return "fs7";
+    case rv::rvFREG::F24: return "fs8";
+    case rv::rvFREG::F25: return "fs9";
+    case rv::rvFREG::F26: return "fs10";
+    case rv::rvFREG::F27: return "fs11";
+    case rv::rvFREG::F28: return "fs8";
+    case rv::rvFREG::F29: return "ft9";
+    case rv::rvFREG::F30: return "ft10";
+    case rv::rvFREG::F31: return "ft11";
+    
+    default:
+        assert(0 && "Unexpected rvFREG!");
+        break;
+    }
+}
+
+std::string rv::toString(rv::rvOPCODE r){
+    switch (r)
+    {
+    // arithmetic & logic
+    case rv::rvOPCODE::ADD  : return"add";
+    case rv::rvOPCODE::SUB  : return"sub";
+    case rv::rvOPCODE::XOR  : return"xor";
+    case rv::rvOPCODE::OR   : return"or";
+    case rv::rvOPCODE::AND  : return"and";
+    case rv::rvOPCODE::SLL  : return"sll";
+    case rv::rvOPCODE::SRL  : return"srl";
+    case rv::rvOPCODE::SRA  : return"sra";
+    case rv::rvOPCODE::SLT  : return"slt";
+    case rv::rvOPCODE::SLTU : return"sltu";
+    // immediate
+    case rv::rvOPCODE::ADDI : return"addi";
+    case rv::rvOPCODE::XORI : return"xori";
+    case rv::rvOPCODE::ORI  : return"ori";
+    case rv::rvOPCODE::ANDI : return"andi";
+    case rv::rvOPCODE::SLLI : return"slli";
+    case rv::rvOPCODE::SRLI : return"srli";
+    case rv::rvOPCODE::SRAI : return"srai";
+    case rv::rvOPCODE::SLTI : return"slti";
+    case rv::rvOPCODE::SLTIU: return"sltiu";
+    // load & store
+    case rv::rvOPCODE::LW   : return"lw";
+    case rv::rvOPCODE::SW   : return"sw";
+    // conditional branch
+    case rv::rvOPCODE::BEQ  : return"beq";
+    case rv::rvOPCODE::BNE  : return"bne";
+    case rv::rvOPCODE::BLT  : return"blt";
+    case rv::rvOPCODE::BGE  : return"bge";
+    case rv::rvOPCODE::BLTU : return"bltu";
+    case rv::rvOPCODE::BGEU : return"bgeu";
+    // jump
+    case rv::rvOPCODE::JAL  : return"jal";
+    case rv::rvOPCODE::JALR : return"jalr";
+    // RV32M Multiply Extension
+    case rv::rvOPCODE::MUL : return"mul";
+    case rv::rvOPCODE::DIV : return"div";
+    case rv::rvOPCODE::REM : return"rem";
+    // RV32F / D Floating-Point Extensions
+        // Float Reg Mem Inst  
+    case rv::rvOPCODE::FLW  : return"flw";
+    case rv::rvOPCODE::FSW  : return"fsw";
+        // Operation
+    case rv::rvOPCODE::FADD_S  : return"fadd.s";
+    case rv::rvOPCODE::FSUB_S  : return"fsub.s";
+    case rv::rvOPCODE::FMUL_S  : return"fmul.s";
+    case rv::rvOPCODE::FDIV_S  : return"fdiv.s";
+        // Convert
+    case rv::rvOPCODE::FCVT_S_W  : return"fcvt.s.w";
+    case rv::rvOPCODE::FCVT_W_S  : return"fcvt.w.s";
+        // Comp Inst 
+    case rv::rvOPCODE::FEQ_S  : return"feq.s";
+    case rv::rvOPCODE::FLT_S  : return"flt.s";
+    case rv::rvOPCODE::FLE_S  : return"fle.s";
+        // reg move
+    case rv::rvOPCODE::FMV_W_X: return"fmv.w.x";
+    case rv::rvOPCODE::FMV_X_W: return"fmv.x.w";
+    // Pseudo Instructions
+    case rv::rvOPCODE::LA  : return "la";
+    case rv::rvOPCODE::LI : return "li";
+    case rv::rvOPCODE::MOV  : return "mv";
+    case rv::rvOPCODE::FMOV  : return "fmv.s";
+    case rv::rvOPCODE::J : return "j";
+    case rv::rvOPCODE::RET : return "ret";
+    case rv::rvOPCODE::CALL : return "call";
+    case rv::rvOPCODE::FNEQ_S  : return"fneq.s";
+    case rv::rvOPCODE::NOP  : return"nop";
+    default:
+        assert(0 && "Unexpected Operation!");
+        break;
+    }
+}

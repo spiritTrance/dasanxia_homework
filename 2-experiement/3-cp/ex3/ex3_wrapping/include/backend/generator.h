@@ -86,7 +86,6 @@ struct Generator {
 
     int find_operand(ir::Operand);
     int add_operand(ir::Operand, int32_t size = 4);    // 栈空间里面分配空间
-
     // // 寄存器管理
     // 进入一个函数首先调用callee寄存器
     int calleeRegisterSave();   // 返回保存了多少个寄存器，要求在进入函数前调用
@@ -95,7 +94,6 @@ struct Generator {
     int callerRegisterSave();
     int callerRegisterRestore();   // 返回保存了多少个寄存器，要求在进入函数前调用
     // void findOperandInRegFile(ir::Operand);
-
     int getStackSpaceSize(std::vector<ir::Instruction *> &);
 
     // algorithm FIXME TODO
