@@ -72,10 +72,10 @@ bool backend::Generator::isInReg(ir::Operand op){
 
 // caseOp = 0: int, caseOp = 1: float
 void backend::Generator::expireRegData(int regIndex, int caseOp){
-    cout << "In expireRegData: " << regIndex << ' ' << caseOp << endl;
     if (caseOp == 0){   // 整数
         rv::rvREG reg = rv::rvREG(regIndex);
         Operand opd = i_reg2opdTable[reg];
+        cout << "In expireRegData: " << toGenerateString(rv::rvREG(regIndex))<<' '<<opd.name << endl;
         if (isGlobalVar(opd)){      // 全局变量，约定X7用来存储地址（包括浮点数也是）
             fout<<"\t"<<"lui\t"<<toGenerateString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
             fout<<"\t"<<"sw\t"<<toGenerateString(reg)<<","<<"\%lo("<<opd.name<<")("<<toGenerateString(rv::rvREG::X7)<<")"<<endl;
@@ -97,6 +97,7 @@ void backend::Generator::expireRegData(int regIndex, int caseOp){
     else if(caseOp == 1){    //浮点数
         rv::rvFREG reg = rv::rvFREG(regIndex);
         Operand opd = f_reg2opdTable[reg];
+        cout << "In expireRegData: " << toGenerateString(rv::rvFREG(regIndex))<<' '<<opd.name << endl;
         if (isGlobalVar(opd)){
             fout<<"\t"<<"lui\t"<<toGenerateString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
             fout<<"\t"<<"fsw\t"<<toGenerateString(reg)<<","<<"\%lo("<<opd.name<<")("<<toGenerateString(rv::rvREG::X7)<<")"<<endl;
@@ -122,7 +123,7 @@ void backend::Generator::expireRegData(int regIndex, int caseOp){
 }       // 将寄存器里面的值移回到内存，注意可能是全局变量
 
 void backend::Generator::loadMemData(int regIndex, ir::Operand op){
-    cout << "In loadMemdata: " << op.name << ' '<<regIndex<<endl;
+    cout << "In loadMemdata: " << op.name << ' '<<toGenerateString(rv::rvREG(regIndex))<< ' '<<toGenerateString(rv::rvFREG(regIndex))<<' '<<toString(op.type)<<endl;
     if (op.type == Type::Float  || op.type == Type::FloatLiteral){
         rv::rvFREG reg = rv::rvFREG(regIndex);
         assert(!(f_validReg >> regIndex) && "Not a empty register!");
@@ -153,7 +154,7 @@ void backend::Generator::loadMemData(int regIndex, ir::Operand op){
         else{
             // 读取进来
             rv::rv_inst rv_load_inst;
-            rv_load_inst.op = rv::rvOPCODE::FLW;
+            rv_load_inst.op = rv::rvOPCODE::LW;
             rv_load_inst.rd = reg;
             rv_load_inst.rs1 = rv::rvREG::X8;       // fp
             rv_load_inst.imm = getOffSetFromStackSpace(op);
@@ -200,6 +201,8 @@ rv::rvREG  backend::Generator::getRd(ir::Operand op){
     static const std::vector<rv::rvREG> tempRegList{rv::rvREG::X5, rv::rvREG::X6};
     rv::rvREG ans = rv::rvREG::X32;
     if (isInReg(op)){       // 就在寄存器
+        rv::rvREG reg = i_opd2regTable[op];
+        i_imAtomicComp |= 1 << int(reg);
         return i_opd2regTable[op];
     }
     else if (isGlobalVar(op) || isInStack(op)){
@@ -241,6 +244,8 @@ rv::rvREG  backend::Generator::getRs1(ir::Operand op){
     static const std::vector<rv::rvREG> tempRegList{rv::rvREG::X28, rv::rvREG::X29};
     rv::rvREG ans = rv::rvREG::X32;
     if (isInReg(op)){       // 就在寄存器
+        rv::rvREG reg = i_opd2regTable[op];
+        i_imAtomicComp |= 1 << int(reg);
         return i_opd2regTable[op];
     }
     else if (isGlobalVar(op) || isInStack(op)){
@@ -282,6 +287,8 @@ rv::rvREG  backend::Generator::getRs2(ir::Operand op){
     static const std::vector<rv::rvREG> tempRegList{rv::rvREG::X30, rv::rvREG::X31};
     rv::rvREG ans = rv::rvREG::X32;
     if (isInReg(op)){       // 就在寄存器
+        rv::rvREG reg = i_opd2regTable[op];
+        i_imAtomicComp |= 1 << int(reg);
         return i_opd2regTable[op];
     }
     else if (isGlobalVar(op) || isInStack(op)){
@@ -323,6 +330,8 @@ rv::rvFREG backend::Generator::fgetRd(ir::Operand op){
     static const std::vector<rv::rvFREG> tempRegList{rv::rvFREG::F0, rv::rvFREG::F1, rv::rvFREG::F2, rv::rvFREG::F3};
     rv::rvFREG ans = rv::rvFREG::F32;
     if (isInReg(op)){       // 就在寄存器
+        rv::rvFREG reg = f_opd2regTable[op];
+        f_imAtomicComp |= 1 << int(reg);
         return f_opd2regTable[op];
     }
     else if (isGlobalVar(op) || isInStack(op)){
@@ -364,6 +373,8 @@ rv::rvFREG backend::Generator::fgetRs1(ir::Operand op){
     static const std::vector<rv::rvFREG> tempRegList{rv::rvFREG::F4, rv::rvFREG::F5, rv::rvFREG::F6, rv::rvFREG::F7};
     rv::rvFREG ans = rv::rvFREG::F32;
     if (isInReg(op)){       // 就在寄存器
+        rv::rvFREG reg = f_opd2regTable[op];
+        f_imAtomicComp |= 1 << int(reg);
         return f_opd2regTable[op];
     }
     else if (isGlobalVar(op) || isInStack(op)){
@@ -405,6 +416,8 @@ rv::rvFREG backend::Generator::fgetRs2(ir::Operand op){
     static const std::vector<rv::rvFREG> tempRegList{rv::rvFREG::F28, rv::rvFREG::F29, rv::rvFREG::F30, rv::rvFREG::F31};
     rv::rvFREG ans = rv::rvFREG::F32;
     if (isInReg(op)){       // 就在寄存器
+        rv::rvFREG reg = f_opd2regTable[op];
+        f_imAtomicComp |= 1 << int(reg);
         return f_opd2regTable[op];
     }
     else if (isGlobalVar(op) || isInStack(op)){
@@ -498,6 +511,23 @@ void backend::Generator::gen_func(ir::Function& func){
     i_imAtomicComp = 0;
     rvInstSp.imm = totSpace;
     fout << rvInstSp.draw();
+    // 退出函数前，保存所有全局变量
+    for (auto it = i_reg2opdTable.begin(); it != i_reg2opdTable.end(); it++){
+        rv::rvREG reg = it->first;
+        const Operand &opd = it->second;
+        if (isGlobalVar(opd)){
+            fout<<"\t"<<"lui\t"<<toGenerateString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
+            fout<<"\t"<<"sw\t"<<toGenerateString(reg)<<","<<"\%lo("<<opd.name<<")("<<toGenerateString(rv::rvREG::X7)<<")"<<endl;
+        }
+    }
+    for (auto it = f_reg2opdTable.begin(); it != f_reg2opdTable.end(); it++){
+        rv::rvFREG reg = it->first;
+        const Operand &opd = it->second;
+        if (isGlobalVar(opd)){
+            fout<<"\t"<<"lui\t"<<toGenerateString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
+            fout<<"\t"<<"sw\t"<<toGenerateString(reg)<<","<<"\%lo("<<opd.name<<")("<<toGenerateString(rv::rvREG::X7)<<")"<<endl;
+        }
+    }
     // 恢复寄存器
     calleeRegisterRestore();
     // 跳转回去
@@ -508,6 +538,8 @@ void backend::Generator::gen_func(ir::Function& func){
     rvInstJR.imm = 0;
     fout << rvInstJR.draw();
 }
+
+
 
 void backend::Generator::gen_instr(ir::Instruction& inst){
     // 库函数
@@ -539,7 +571,6 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         case ir::Operator::mov:
         {
             rv::rv_inst inst;
-            inst.rd = getRd(des);
             if (op1.type == Type::IntLiteral){
                 inst.imm = (int32_t)std::stoi(op1.name);
                 inst.op = rv::rvOPCODE::LI;
@@ -548,14 +579,16 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 inst.rs1 = getRs1(op1);
                 inst.op = rv::rvOPCODE::MOV;
             }
+            inst.rd = getRd(des);
             fout << inst.draw();
+            // 如果目标地址是全局变量：
+            i_imAtomicComp = f_imAtomicComp = 0;
         }
             break;
         case ir::Operator::fdef:
         case ir::Operator::fmov:
         {
             rv::rv_inst inst;
-            inst.frd = fgetRd(des);
             if (op1.type == Type::FloatLiteral){
                 // 小心这里丢精度，草，浮点数要经过：LI, fmv.w.x两个阶段即可
                 float f = std::stof(op1.name);
@@ -570,6 +603,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 inst.frs1 = fgetRs1(op1);
                 inst.op = rv::rvOPCODE::FMOV;
             }
+            inst.frd = fgetRd(des);
             fout << inst.draw();
         }
             break;
@@ -579,7 +613,6 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             assert(!(op1.type == Type::IntLiteral && op2.type == Type::IntLiteral) && "两个字面量你算你妈呢。");
             rv::rv_inst rvInst;
             // 三种情况：有一个是字面量；全是临时变量
-            rvInst.rd = getRd(des);
             if (op1.type == Type::IntLiteral){
                 rvInst.rs1 = getRs1(op2);
                 rvInst.imm = std::stoi(op1.name);
@@ -595,6 +628,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst.rs2 = getRs2(op2);
                 rvInst.op = rv::rvOPCODE::ADD;
             }
+            rvInst.rd = getRd(des);
             fout << rvInst.draw();
         }
             break;
@@ -603,9 +637,9 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         {
             rv::rv_inst rvInst;
             rvInst.op = rv::rvOPCODE::ADDI;
-            rvInst.rd = getRd(des);
             rvInst.rs1 = getRs1(op1);
             rvInst.imm = op == Operator::addi ? (int32_t)std::stoi(op2.name) : -(int32_t)std::stoi(op2.name);
+            rvInst.rd = getRd(des);
             fout << rvInst.draw();
         }
             break;
@@ -622,7 +656,6 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         {
             rv::rv_inst rvInst;
             // 四种情况
-            rvInst.frd = fgetRd(des);
             rvInst.op = op == Operator::fadd ? rv::rvOPCODE::FADD_S :
                         op == Operator::fsub ? rv::rvOPCODE::FSUB_S :
                         op == Operator::fmul ? rv::rvOPCODE::FMUL_S :
@@ -693,6 +726,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst.frs1 = fgetRs1(op1);
                 rvInst.frs2 = fgetRs2(op2);
             }
+            rvInst.frd = fgetRd(des);
             fout << rvInst.draw();
         }
             break;
@@ -701,7 +735,6 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             assert(!(op1.type == Type::IntLiteral && op2.type == Type::IntLiteral) && "两个字面量你算你妈呢。");
             rv::rv_inst rvInst;
             // 三种情况：有一个是字面量；全是临时变量
-            rvInst.rd = getRd(des);
             if (op1.type == Type::IntLiteral){      // op1是intLiteral，有点麻烦
                 rv::rv_inst rvInst_li;
                 rvInst_li.op = rv::rvOPCODE::LI;
@@ -722,6 +755,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst.rs2 = getRs2(op2);
                 rvInst.op = rv::rvOPCODE::SUB;
             }
+            rvInst.rd = getRd(des);
             fout << rvInst.draw();
         }
             break;
@@ -733,7 +767,6 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             // 四种情况：Int和Literal两两组合
             // 由于没有faddi，所以要迁移一下，多个li的伪指令
             // 我们约定第一个算寄存器的，第二个是立即数加载出来的
-            rvInst.rd = getRd(des);
             rvInst.op = op == Operator::mul ? rv::rvOPCODE::MUL :\
                         op == Operator::div ? rv::rvOPCODE::DIV : rv::rvOPCODE::REM;
             if (op1.type == Type::IntLiteral && op2.type == Type::IntLiteral){
@@ -770,6 +803,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst.rs1 = getRs1(op1);
                 rvInst.rs2 = getRs2(op2);
             }
+            rvInst.rd = getRd(des);
             fout << rvInst.draw();
         }
             break;
@@ -785,7 +819,6 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             // 四种情况：Int和Literal两两组合
             // 由于没有faddi，所以要迁移一下，多个li的伪指令
             // 我们约定第一个算寄存器的，第二个是立即数加载出来的
-            rvInst.rd = getRd(des);
             rvInst.op = op == Operator::lss ? rv::rvOPCODE::BLT :\
                         op == Operator::leq ? rv::rvOPCODE::BGE :\
                         op == Operator::gtr ? rv::rvOPCODE::BLT :\
@@ -829,6 +862,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst.rs1 = getRs1(op1);
                 rvInst.rs2 = getRs2(op2);
             }
+            rvInst.rd = getRd(des);
             fout << rvInst.draw();
         }
             break;
@@ -837,9 +871,9 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         {
             rv::rv_inst rvInst;
             rvInst.op = rv::rvOPCODE::BEQ;      // 和零寄存器判断
-            rvInst.rd = getRd(des);
             rvInst.rs1 = getRs1(op1);
             rvInst.rs2 = rv::rvREG::X0;
+            rvInst.rd = getRd(des);
             fout << rvInst.draw();
         }
             break;
@@ -850,7 +884,6 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             // 四种情况：Int和Literal两两组合
             // 由于没有faddi，所以要迁移一下，多个li的伪指令
             // 我们约定第一个算寄存器的，第二个是立即数加载出来的
-            rvInst.rd = getRd(des);
             rvInst.op = op == Operator::_or ? rv::rvOPCODE::OR : rv::rvOPCODE::AND;
             if (op1.type == Type::IntLiteral || op2.type == Type::IntLiteral){
                 rvInst.op = op == Operator::_or ? rv::rvOPCODE::ORI : rv::rvOPCODE::ANDI;
@@ -879,6 +912,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst.rs1 = getRs1(op1);
                 rvInst.rs2 = getRs2(op2);
             }
+            rvInst.rd = getRd(des);
             fout << rvInst.draw();
         }
             break;
@@ -902,16 +936,16 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     // 此时rd存的是数组基址
                     rvInst.rs1 = rvInst.rd;
                     rvInst.imm = 4 * std::stoi(op2.name);
-                    rvInst.op = rv::rvOPCODE::FLW;
+                    rvInst.op = rv::rvOPCODE::LW;
                     fout << rvInst.draw();
                 }
                 else if (isInStack(op1)){
-                    rvInst.op = rv::rvOPCODE::FLW;
-                    rvInst.frd = fgetRd(des);
+                    rvInst.op = rv::rvOPCODE::LW;
                     rvInst.rs1 = rv::rvREG::X8;
                     int arr_base_offset = getOffSetFromStackSpace(op1);
                     int arr_idx_offset = std::stoi(op2.name) * 4;
                     rvInst.imm = arr_base_offset + arr_idx_offset ;
+                    rvInst.frd = fgetRd(des);
                     fout << rvInst.draw();
                 }
                 else{
@@ -929,11 +963,11 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 }
                 else if (isInStack(op1)){
                     rvInst.op = rv::rvOPCODE::LW;
-                    rvInst.rd = getRd(des);
                     rvInst.rs1 = rv::rvREG::X8;
                     int arr_base_offset = getOffSetFromStackSpace(op1);
                     int arr_idx_offset = std::stoi(op2.name) * 4;
                     rvInst.imm = arr_base_offset + arr_idx_offset ;
+                    rvInst.rd = getRd(des);
                     fout << rvInst.draw();
                 }
                 else{
@@ -1018,8 +1052,8 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         // 那么我们的xx也要符合这个规定
         {
             rv::rv_inst rvInst;
-            rvInst.rd = getRd(des);
             if (isGlobalVar(op1)){       // 全局变量
+                rvInst.rd = getRd(des);
                 fout<<"\t"<<"lui\t"<<toGenerateString(rvInst.rd)<<","<<"\%hi("<<op1.name<<")"<<endl;
                 fout<<"\t"<<"addi\t"<<toGenerateString(rvInst.rd)<<","<<toGenerateString(rvInst.rd)<<","<<"\%lo("<<op1.name<<")"<<endl;     // arrName base addr
                 fout<<"\t"<<"addi\t"<<toGenerateString(rvInst.rd)<<","<<toGenerateString(rvInst.rd)<<","<<std::stoi(op2.name) * 4<<endl;    // offset
@@ -1031,6 +1065,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst.op = rv::rvOPCODE::ADDI;
                 rvInst.rs1 = rv::rvREG::X8;
                 rvInst.imm = totOffSet_fp;
+                rvInst.rd = getRd(des);
                 fout << rvInst.draw();
             }
             else{
@@ -1045,6 +1080,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             ir::Instruction *instPtr = &inst;
             ir::CallInst* callInstPtr= dynamic_cast<ir::CallInst*>(instPtr);    // callInst 要向下类型转换
             assert(callInstPtr && "Not a callInst.");
+            // 调用者保存寄存器
             callerRegisterSave();
             // 把相应参数读入相应寄存器
             int intRegCount = 0;        // 整数寄存器的数量
@@ -1149,7 +1185,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             else{
                 assert(des.type == Type::null && "Unexpeced Return Type!");
             }
-            calleeRegisterRestore();        // 恢复寄存器
+            callerRegisterRestore();        // 恢复寄存器
         }
             break;
         case ir::Operator::_return:
@@ -1163,22 +1199,22 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             if (op1.type == Type::Int){
                 rv::rv_inst rvInst;
                 rvInst.op = rv::rvOPCODE::MOV;
-                rvInst.rd = rv::rvREG::X10;
                 rvInst.rs1 = getRs1(op1);
+                rvInst.rd = rv::rvREG::X10;
                 fout << rvInst.draw();
             }
             else if (op1.type == Type::Float){
                 rv::rv_inst rvInst;
                 rvInst.op = rv::rvOPCODE::FMOV;
-                rvInst.frd = rv::rvFREG::F10;   // a0 返回地址
                 rvInst.frs1 = fgetRs1(op1);
+                rvInst.frd = rv::rvFREG::F10;   // a0 返回地址
                 fout << rvInst.draw();
             }
             else if (op1.type == Type::IntLiteral){
                 rv::rv_inst rvInst;
                 rvInst.op = rv::rvOPCODE::LI;
-                rvInst.rd = rv::rvREG::X10;     // a0 返回地址
                 rvInst.imm = std::stoi(op1.name);
+                rvInst.rd = rv::rvREG::X10;     // a0 返回地址
                 fout << rvInst.draw();
             }
             else if (op1.type == Type::FloatLiteral){
@@ -1260,8 +1296,8 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         {
             rv::rv_inst rvInst;
             rvInst.op = rv::rvOPCODE::FCVT_S_W;
-            rvInst.frd = fgetRd(des);
             rvInst.rs1 = getRs1(op1);
+            rvInst.frd = fgetRd(des);
             fout << rvInst.draw();
         }
             break;
@@ -1474,8 +1510,10 @@ int backend::Generator::calleeRegisterSave(){
 int backend::Generator::calleeRegisterRestore(){
     // 注意sp我们不予保存，sp用addi来计算，在gen_func里面管理
     // const unsigned int i_calleeRegisterMask = 0b00001111111111000000001100000100;
+    cout << "Trigger calleeRegSave." << endl;
     const unsigned int i_calleeRegisterMask = 0b00001111111111000000001100000010;
     const unsigned int f_calleeRegisterMask = 0b00001111111111000000001100000000;
+    // 想一下，在函数退出的时候，要把全局变量恢复回去哦
     for (int i = 0; i < 32; i++){
         if ((i_calleeRegisterMask >> i) & 1){
             rv::rv_inst rvInst;
@@ -1520,12 +1558,18 @@ int backend::Generator::callerRegisterSave(){
             regSaveCount++;
             rv::rv_inst rvInst;
             rv::rvREG saveReg = rv::rvREG(i);
-            rvInst.op = rv::rvOPCODE::SW;
-            rvInst.rs1 = rv::rvREG::X8;         // fp
-            rvInst.rs2 = saveReg;
             ir::Operand opd = i_reg2opdTable[saveReg];
-            rvInst.imm = find_operand(opd);
-            fout << rvInst.draw();
+            if (isGlobalVar(opd)){      // 全局变量
+                fout<<"\t"<<"lui\t"<<toGenerateString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
+                fout<<"\t"<<"sw\t"<<toGenerateString(saveReg)<<","<<"\%lo("<<opd.name<<")("<<toGenerateString(rv::rvREG::X7)<<")"<<endl;
+            }
+            else{
+                rvInst.op = rv::rvOPCODE::SW;
+                rvInst.rs1 = rv::rvREG::X8;         // fp
+                rvInst.rs2 = saveReg;
+                rvInst.imm = find_operand(opd);
+                fout << rvInst.draw();
+            }
         }
     }
     // 处理浮点数寄存器
@@ -1534,12 +1578,18 @@ int backend::Generator::callerRegisterSave(){
             regSaveCount++;
             rv::rv_inst rvInst;
             rv::rvFREG saveReg = rv::rvFREG(i);
-            rvInst.op = rv::rvOPCODE::FSW;
-            rvInst.rs1 = rv::rvREG::X8;
-            rvInst.frs2 = saveReg;
             ir::Operand opd = f_reg2opdTable[saveReg];
-            rvInst.imm = find_operand(opd);
-            fout << rvInst.draw();
+            if (isGlobalVar(opd)){      // 全局变量
+                fout<<"\t"<<"lui\t"<<toGenerateString(rv::rvREG::X7)<<","<<"\%hi("<<opd.name<<")"<<endl;
+                fout<<"\t"<<"fsw\t"<<toGenerateString(saveReg)<<","<<"\%lo("<<opd.name<<")("<<toGenerateString(rv::rvREG::X7)<<")"<<endl;
+            }
+            else{
+                rvInst.op = rv::rvOPCODE::FSW;
+                rvInst.rs1 = rv::rvREG::X8;
+                rvInst.frs2 = saveReg;
+                rvInst.imm = find_operand(opd);
+                fout << rvInst.draw();
+            }
         }
     }
     return regSaveCount;
@@ -1623,6 +1673,7 @@ backend::GlobalValElement::GlobalValElement(const GlobalValElement& ele){
 void backend::GlobalValElement::draw(std::ofstream& fout){
     if (tp == Type::IntPtr || tp==Type::FloatPtr){  // 数组
         fout << "\t.globl\t" << sVarName << endl;
+        fout << "\t.section\t" << ".sdata,\"aw\"" << endl;
         fout << "\t.align\t" << "2"      << endl;
         fout << "\t.size\t"  << sVarName << ", " <<maxLen * 4<< endl;
         fout << sVarName     << ":"      << endl;
@@ -1647,6 +1698,7 @@ void backend::GlobalValElement::draw(std::ofstream& fout){
     }
     else if(tp != Type::null){       // 变量
         fout << "\t.globl\t" << sVarName << endl;
+        fout << "\t.section\t" << ".sdata,\"aw\"" << endl;
         fout << "\t.align\t" << "2"      << endl;
         fout << "\t.type\t"  << sVarName << ", @object"     << endl;
         fout << "\t.size\t"  << sVarName << ", 4"           << endl;

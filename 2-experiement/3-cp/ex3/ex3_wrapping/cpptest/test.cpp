@@ -17,10 +17,9 @@
 //     int c = 1 - b;
 //     return c;
 // }
-void func(){
-    int a = 2;
-}
+int a = 9;
+int b;
 int main(){
-    func();
+    b = 88;
     return 0;
 }
