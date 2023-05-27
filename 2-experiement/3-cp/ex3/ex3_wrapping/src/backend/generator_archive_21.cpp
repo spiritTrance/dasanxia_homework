@@ -30,14 +30,10 @@ int backend::stackVarMap::find_operand(ir::Operand op){
 int backend::stackVarMap::add_operand(ir::Operand op, int32_t size){
     // 感觉可以全用fp算偏移，然后sp看怎么弄
     assert(size % 4 == 0 && "Size should be the multiple of 4");
-    // 这里不应该这样写来算大小，但是懒得加全局变量维护了= =（编译速度不在考量范围内吧）
-    int currSize = 0;
-    for (auto it = stack_table.begin(); it != stack_table.end(); it++){
-        currSize = -(it->second) > currSize ? -(it->second) : currSize;
-    }
+    int currSize = stack_table.size() * 4;
     int totSize = -(currSize + size);
     stack_table[op] = totSize;
-    cout << "In add_operand: " << op.name << ' ' << totSize <<' '<< size << endl;
+    // cout << "In add_operand: " << op.name << ' ' << totSize << endl;
     return totSize;        // 相对于fp来算的话，fp是大地址，那么-fp是小地址，数组的话，正向偏移，和xx一致的。
 }
 
@@ -556,9 +552,9 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
     // 4、仔细思考：全局变量作为源操作数和目的操作数怎么办，全局变量作为参数传进来怎么办（尤其是数组）
     // 5、完蛋
     // TODO DEBUG: 浮点计数器不能采用LI加载常量
-    cout << "In gen_instr: " << ir_stamp << ' ' << inst.draw() << endl;
-    cout << "\ti_validReg: " << std::bitset<sizeof(i_validReg)*8>(i_validReg) << endl;
-    cout << "\tf_validReg: " << std::bitset<sizeof(f_validReg)*8>(f_validReg) << endl;
+    // cout << "In gen_instr: " << ir_stamp << ' ' << inst.draw() << endl;
+    // cout << "\ti_validReg: " << std::bitset<sizeof(i_validReg)*8>(i_validReg) << endl;
+    // cout << "\tf_validReg: " << std::bitset<sizeof(f_validReg)*8>(f_validReg) << endl;
     ir_stamp += 1;
     if (index_flag[ir_stamp]){
         fout << ".L" + std::to_string(index_flag[ir_stamp]) + ":"<< endl;
@@ -1045,7 +1041,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         case ir::Operator::alloc:   // alloc des(a), op1(2)
         {
             int sz = std::stoi(op1.name);
-            add_operand(des, sz * 4);       // 32个大小
+            add_operand(des, sz * 4);
         }
             break;
         case ir::Operator::getptr:
@@ -1057,55 +1053,22 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         // TODO: 全局变量：下标越大，地址越大，但是我们的栈空间，s0是地址大的位置，那么偏移量应该是负数
         // 那么我们的xx也要符合这个规定
         {
-            // 注意off也可能是个变量 = =
             rv::rv_inst rvInst;
             if (isGlobalVar(op1)){       // 全局变量
                 rvInst.rd = getRd(des);
                 fout<<"\t"<<"lui\t"<<toString(rvInst.rd)<<","<<"\%hi("<<op1.name<<")"<<endl;
                 fout<<"\t"<<"addi\t"<<toString(rvInst.rd)<<","<<toString(rvInst.rd)<<","<<"\%lo("<<op1.name<<")"<<endl;     // arrName base addr
-                // 此时rd已经放了arr的基地址，此时判断offset是变量还是常量
-                if (op2.type == Type::IntLiteral){
-                    fout<<"\t"<<"addi\t"<<toString(rvInst.rd)<<","<<toString(rvInst.rd)<<","<<std::stoi(op2.name) * 4<<endl;    // offset
-                }
-                else{       // op2保存了偏移量
-                    rv::rv_inst rvInst_offsetAddr;
-                    rvInst_offsetAddr.op = rv::rvOPCODE::SLLI;
-                    rvInst_offsetAddr.rd = rvInst_offsetAddr.rs1 = getRs1(op2);
-                    rvInst_offsetAddr.imm = 2;     // 左移两位相当于乘以4
-                    fout << rvInst_offsetAddr.draw();
-                    rvInst.op = rv::rvOPCODE::ADD;      // 算偏移量
-                    rvInst.rs1 = rvInst.rd;
-                    rvInst.rs2 = rvInst_offsetAddr.rd;
-                    fout << rvInst.draw();
-                }
+                fout<<"\t"<<"addi\t"<<toString(rvInst.rd)<<","<<toString(rvInst.rd)<<","<<std::stoi(op2.name) * 4<<endl;    // offset
             }
             else if (isInStack(op1)){   // 局部变量
-                if (op2.type == Type::IntLiteral){      // 偏移量是字面量
-                    int arr_idx_offset = std::stoi(op2.name) * 4;
-                    int arr_base_offset = getOffSetFromStackSpace(op1);
-                    int totOffSet_fp = arr_idx_offset + arr_base_offset;
-                    rvInst.op = rv::rvOPCODE::ADDI;
-                    rvInst.rs1 = rv::rvREG::X8;
-                    rvInst.imm = totOffSet_fp;
-                    rvInst.rd = getRd(des);
-                    fout << rvInst.draw();
-                }
-                else{       // 不是字面量
-                    rv::rv_inst rvInst_baseComp;
-                    rvInst_baseComp.rd = rvInst_baseComp.rs1 = getRs1(op2);
-                    rvInst_baseComp.imm = 2;
-                    rvInst_baseComp.op = rv::rvOPCODE::SLLI;    // 步骤1：算偏移量
-                    fout << rvInst_baseComp.draw();     // IDX乘以4，算byte
-                    rvInst_baseComp.op = rv::rvOPCODE::ADD;
-                    rvInst_baseComp.rs2 = rv::rvREG::X8;
-                    fout << rvInst_baseComp.draw();             // 步骤2：基于fp先把偏移算掉，再加arr偏移就可以得到
-                    int arr_base_offset = getOffSetFromStackSpace(op1);
-                    rvInst.op = rv::rvOPCODE::ADDI;
-                    rvInst.rs1 = rvInst_baseComp.rd;     // fp
-                    rvInst.imm = arr_base_offset;       // 偏移量是负数
-                    rvInst.rd = getRd(des);
-                    fout << rvInst.draw();
-                }
+                int arr_idx_offset = std::stoi(op2.name) * 4;
+                int arr_base_offset = getOffSetFromStackSpace(op1);
+                int totOffSet_fp = arr_idx_offset + arr_base_offset;
+                rvInst.op = rv::rvOPCODE::ADDI;
+                rvInst.rs1 = rv::rvREG::X8;
+                rvInst.imm = totOffSet_fp;
+                rvInst.rd = getRd(des);
+                fout << rvInst.draw();
             }
             else{
                 assert(0 && "No such a operand!");
@@ -1470,7 +1433,7 @@ int backend::Generator::add_operand(ir::Operand op, int32_t size){
         // cout << "In Operand: Already Allocated." << endl;
         return memvar_Stack[index].stack_table[op];
     }
-    return memvar_Stack[index].add_operand(op, size);
+    return memvar_Stack[index].add_operand(op);
 }
 
 
@@ -1671,17 +1634,12 @@ int backend::Generator::callerRegisterRestore(){
 
 int backend::Generator::getStackSpaceSize(std::vector<ir::Instruction *> & func){
     std::set<ir::Operand> varSet;
-    int arrSize = 0;
-    // alloc op1就是大小，因为所有数组大小都必须在编译期确定，所以都可以知道大小！
     for (auto& i: func){
         varSet.insert(i->des);
         varSet.insert(i->op1);
         varSet.insert(i->op2);
-        if (i->op == Operator::alloc){  // 数组别忽略了
-            arrSize += std::stoi(i->op1.name);
-        }
     }
-    return varSet.size() * 4 + arrSize * 4;
+    return varSet.size() * 4;
 }
 
 

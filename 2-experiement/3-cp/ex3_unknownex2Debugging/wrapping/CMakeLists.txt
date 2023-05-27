@@ -5,8 +5,8 @@ project(compiler)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_FLAGS   "-g")                     # 调试信息
 set(CMAKE_CXX_FLAGS   "-Wall")                  # 开启所有警告
-set(CMAKE_C_COMPILER    "/usr/bin/x86_64-linux-gnu-gcc-7")
-set(CMAKE_CXX_COMPILER  "/usr/bin/x86_64-linux-gnu-g++-7")
+# set(CMAKE_C_COMPILER    "/usr/bin/x86_64-linux-gnu-gcc-7")
+# set(CMAKE_CXX_COMPILER  "/usr/bin/x86_64-linux-gnu-g++-7")
 # debug flags
 # add_definitions(-DDEBUG_DFA)
 # add_definitions(-DDEBUG_SCANNER)
