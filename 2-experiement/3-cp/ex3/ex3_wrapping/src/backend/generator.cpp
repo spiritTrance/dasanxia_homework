@@ -937,6 +937,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             rv::rv_inst rvInst;
             if (op1.type == Type::FloatPtr){
                 if (isGlobalVar(op1)){      // 全局变量
+                    rvInst.rd = rv::rvREG::X7;
                     fout<<"\t"<<"lui\t"<<toString(rvInst.rd)<<","<<"\%hi("<<op1.name<<")"<<endl;
                     fout<<"\t"<<"addi\t"<<toString(rvInst.rd)<<","<<toString(rvInst.rd)<<","<<"\%lo("<<op1.name<<")"<<endl;     // arrName base addr
                     // 此时rd存的是数组基址
@@ -947,10 +948,9 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 }
                 else if (isInStack(op1)){
                     rvInst.op = rv::rvOPCODE::LW;
-                    rvInst.rs1 = rv::rvREG::X8;
-                    int arr_base_offset = getOffSetFromStackSpace(op1);
+                    rvInst.rs1 = getRs1(op1);
                     int arr_idx_offset = std::stoi(op2.name) * 4;
-                    rvInst.imm = arr_base_offset + arr_idx_offset ;
+                    rvInst.imm = arr_idx_offset;
                     rvInst.frd = fgetRd(des);
                     fout << rvInst.draw();
                 }
@@ -960,6 +960,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             }
             else if (op1.type == Type::IntPtr){
                 if (isGlobalVar(op1)){
+                    rvInst.rd = rv::rvREG::X7;
                     fout<<"\t"<<"lui\t"<<toString(rvInst.rd)<<","<<"\%hi("<<op1.name<<")"<<endl;
                     fout<<"\t"<<"addi\t"<<toString(rvInst.rd)<<","<<toString(rvInst.rd)<<","<<"\%lo("<<op1.name<<")"<<endl;     // arrName base addr
                     rvInst.rs1 = rvInst.rd;
@@ -969,10 +970,9 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 }
                 else if (isInStack(op1)){
                     rvInst.op = rv::rvOPCODE::LW;
-                    rvInst.rs1 = rv::rvREG::X8;
-                    int arr_base_offset = getOffSetFromStackSpace(op1);
+                    rvInst.rs1 = getRs1(op1);
                     int arr_idx_offset = std::stoi(op2.name) * 4;
-                    rvInst.imm = arr_base_offset + arr_idx_offset ;
+                    rvInst.imm = arr_idx_offset ;
                     rvInst.rd = getRd(des);
                     fout << rvInst.draw();
                 }
@@ -1017,7 +1017,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 if (isGlobalVar(op1)){
                     rvInst.rs1 = getRs1(op1);
                     fout<<"\t"<<"lui\t"<<toString(rvInst.rs1)<<","<<"\%hi("<<op1.name<<")"<<endl;
-                    fout<<"\t"<<"addi\t"<<toString(rvInst.rs1)<<","<<toString(rvInst.rd)<<","<<"\%lo("<<op1.name<<")"<<endl;     // arrName base addr
+                    fout<<"\t"<<"addi\t"<<toString(rvInst.rs1)<<","<<toString(rvInst.rs1)<<","<<"\%lo("<<op1.name<<")"<<endl;     // arrName base addr
                     // 此时rs1存的是数组基址
                     rvInst.imm = 4 * std::stoi(op2.name);
                     rvInst.op = rv::rvOPCODE::SW;
