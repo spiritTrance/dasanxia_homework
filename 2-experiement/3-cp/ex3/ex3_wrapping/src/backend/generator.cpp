@@ -510,6 +510,27 @@ void backend::Generator::gen_func(ir::Function& func){
     rvInstSp.rs1 = rv::rvREG::X2;
     rvInstSp.imm = -totSpace;
     fout << rvInstSp.draw();
+    // 形参列表处理
+    int f_count = 0, i_count = 0;
+    static rv::rvREG i_reg_param[8] = {rv::rvREG::X10, rv::rvREG::X11, rv::rvREG::X12, \
+        rv::rvREG::X13, rv::rvREG::X14, rv::rvREG::X15, rv::rvREG::X16, rv::rvREG::X17};
+    static rv::rvFREG f_reg_param[8] = {rv::rvFREG::F10, rv::rvFREG::F11, rv::rvFREG::F12, \
+        rv::rvFREG::F13, rv::rvFREG::F14, rv::rvFREG::F15, rv::rvFREG::F16, rv::rvFREG::F17};
+    for (auto op: func.ParameterList){
+        // FIXME: 没处理参数个数大于8的情况
+        if (op.type == Type::Float){
+            assert(f_count < 8 && "Invalid count!");
+            rv::rvFREG reg = f_reg_param[f_count++];
+            f_opd2regTable[op] = reg;
+            f_reg2opdTable[reg] = op;
+        }
+        else{       // 指针啥的全当整数处理
+            assert(i_count < 8 && "Invalid count!");
+            rv::rvREG reg = i_reg_param[i_count++];
+            i_opd2regTable[op] = reg;
+            i_reg2opdTable[reg] = op;
+        }
+    }
     for (auto inst: func.InstVec){
         gen_instr(*inst);
     }
@@ -1193,12 +1214,13 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 }
             }
             // 处理参数个数溢出的情况
-            for (auto& opd: stackParamList){
-                if (stackParamList.size()){
-                    // FIXME : 盲猜样例没有这种情况，有了assert了再看吧，不想写
-                    assert(0 && "Need Process FuncParams which more than 8!");
-                }
-            }
+            // for (auto& opd: stackParamList){
+            //     if (stackParamList.size()){
+            //         // FIXME : 盲猜样例没有这种情况，有了assert了再看吧，不想写
+            //         assert(0 && "Need Process FuncParams which more than 8!");
+            //     }
+            // }
+            assert(!stackParamList.size() && "Need Process FuncParams which more than 8!");
             // 开始call
             rv::rv_inst rvInstCall;
             rvInstCall.op = rv::rvOPCODE::CALL;
@@ -1687,7 +1709,8 @@ int backend::Generator::getStackSpaceSize(std::vector<ir::Instruction *> & func)
             arrSize += std::stoi(i->op1.name);
         }
     }
-    return varSet.size() * 4 + arrSize * 4;
+    // 最后这个16*4是参数最大个数（期望不超过8，否则要改）
+    return varSet.size() * 4 + arrSize * 4 + 16 * 4;
 }
 
 
