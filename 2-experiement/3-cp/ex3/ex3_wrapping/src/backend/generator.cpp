@@ -37,7 +37,7 @@ int backend::stackVarMap::add_operand(ir::Operand op, int32_t size){
     }
     int totSize = -(currSize + size);
     stack_table[op] = totSize;
-    cout << "In add_operand: " << op.name << ' ' << totSize <<' '<< size << endl;
+    // cout << "In add_operand: " << op.name << ' ' << totSize <<' '<< size << endl;
     return totSize;        // 相对于fp来算的话，fp是大地址，那么-fp是小地址，数组的话，正向偏移，和xx一致的。
 }
 
@@ -1607,6 +1607,7 @@ int backend::Generator::callerRegisterSave(){
                 rvInst.rs1 = rv::rvREG::X8;         // fp
                 rvInst.rs2 = saveReg;
                 rvInst.imm = find_operand(opd);
+                cout << "In callerSave: " << opd.name << endl;
                 fout << rvInst.draw();
             }
         }
@@ -1648,8 +1649,11 @@ int backend::Generator::callerRegisterRestore(){
             rvInst.rs1 = rv::rvREG::X8;     // fp
             rvInst.rd = restoreReg;
             ir::Operand opd = i_reg2opdTable[restoreReg];
-            rvInst.imm = find_operand(opd);
-            fout << rvInst.draw();
+            cout << "In callerRestore: " << opd.name << endl;
+            if (!isGlobalVar(opd)){
+                rvInst.imm = find_operand(opd);
+                fout << rvInst.draw();
+            }        
         }
     }
     // 处理浮点数寄存器
@@ -1662,8 +1666,10 @@ int backend::Generator::callerRegisterRestore(){
             rvInst.rs1 = rv::rvREG::X8;
             rvInst.frd = restoreReg;
             ir::Operand opd = f_reg2opdTable[restoreReg];
-            rvInst.imm = find_operand(opd);
-            fout << rvInst.draw();
+            if (!isGlobalVar(opd)){
+                rvInst.imm = find_operand(opd);
+                fout << rvInst.draw();
+            }        
         }
     }
     return restoreRegCount;
