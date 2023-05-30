@@ -1142,7 +1142,6 @@ void frontend::Analyzer::analysisLOrExp(LOrExp* root, vector<ir::Instruction*>& 
         Operand rootCvtOpd = castExpectedType(OPERAND_NODE(lAndExp), rootCvtType, buffer);
         Operator op = rootCvtType == Type::IntLiteral ? Operator::def : Operator::mov;
         buffer.push_back(new Instruction(rootCvtOpd, Operand(), Operand(tem + root->v, Type::Int), op));
-
         // short circult运算
         des.name = tem + root->v;
         des.type = Type::Int;

@@ -531,9 +531,12 @@ void backend::Generator::gen_func(ir::Function& func){
             i_reg2opdTable[reg] = op;
         }
     }
+    currFuncName = func.name;
     for (auto inst: func.InstVec){
         gen_instr(*inst);
     }
+    // 打印函数结束的标签
+    fout << "." + currFuncName + "_end:" << endl;
     // 恢复sp
     i_imAtomicComp = 0;
     rvInstSp.imm = totSpace;
@@ -835,39 +838,42 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         }
             break;
         // comparison instruction
-        case ir::Operator::lss:     // <        BLT
-        case ir::Operator::leq:     // <=       not exist
-        case ir::Operator::gtr:     // >        not exist
-        case ir::Operator::geq:     // >=       BGE
-        case ir::Operator::eq:      // ==       BEQ
-        case ir::Operator::neq:     // !=       BNE
+        case ir::Operator::lss:     // <        slt/slti
+        case ir::Operator::leq:     // <=       swap + not
+        case ir::Operator::gtr:     // >        swap
+        case ir::Operator::geq:     // >=       not
+        case ir::Operator::eq:      // ==       not xor/not xori，相等则为0，所以要取反
+        case ir::Operator::neq:     // !=       xor/xori
         {
             rv::rv_inst rvInst;
             // 四种情况：Int和Literal两两组合
             // 由于没有faddi，所以要迁移一下，多个li的伪指令
             // 我们约定第一个算寄存器的，第二个是立即数加载出来的
-            rvInst.op = op == Operator::lss ? rv::rvOPCODE::BLT :\
-                        op == Operator::leq ? rv::rvOPCODE::BGE :\
-                        op == Operator::gtr ? rv::rvOPCODE::BLT :\
-                        op == Operator::geq ? rv::rvOPCODE::BGE :\
-                        op == Operator::eq ? rv::rvOPCODE::BEQ : rv::rvOPCODE::BNE;
+            rvInst.op = op == Operator::lss ? rv::rvOPCODE::SLT :\
+                        op == Operator::leq ? rv::rvOPCODE::SLT :\
+                        op == Operator::gtr ? rv::rvOPCODE::SLT :\
+                        op == Operator::geq ? rv::rvOPCODE::SLT :\
+                        op == Operator::eq ? rv::rvOPCODE::XOR : rv::rvOPCODE::XOR;
             // 两种情况，特殊交换一下
             if (op == Operator::leq || op == Operator::gtr){
                 std::swap(op1, op2);
             }
+            // 是否要进行一次not运算（0转1，1转0）
+            bool notFlag = op == Operator::leq || op == Operator::geq || op == Operator::eq;
             if (op1.type == Type::IntLiteral && op2.type == Type::IntLiteral){
                 int32_t u1 = std::stoi(op1.name);
-                int32_t u2 = std::stoi(op2.name);
+                // 加载数
                 rv::rv_inst rvInst_li;
                 rvInst_li.op = rv::rvOPCODE::LI;
                 rvInst.rs1 = rvInst_li.rd = getRs1(op1);
                 rvInst_li.imm = u1;
                 fout << rvInst_li.draw();
-                rvInst.rs2 = rvInst_li.rd = getRs2(op2);
-                rvInst_li.imm = u2;
-                fout << rvInst_li.draw();
+                // 立即数
+                rvInst.op = rvInst.op == rv::rvOPCODE::SLT ? rv::rvOPCODE::SLTI : rv::rvOPCODE::XORI;
+                rvInst.imm = std::stoi(op2.name);
             }
             else if (op1.type == Type::IntLiteral){
+                // 加载op1
                 int32_t u1 = std::stoi(op1.name);
                 rv::rv_inst rvInst_li;
                 rvInst_li.op = rv::rvOPCODE::LI;
@@ -877,13 +883,10 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 rvInst.rs2 = getRs2(op2);
             }
             else if (op2.type == Type::IntLiteral){
-                int32_t u2 = std::stoi(op2.name);
-                rv::rv_inst rvInst_li;
-                rvInst_li.op = rv::rvOPCODE::LI;
-                rvInst.rs2 = rvInst_li.rd = getRs2(op2);
-                rvInst_li.imm = u2;
-                fout << rvInst_li.draw();
+                // 立即数运算
                 rvInst.rs1 = getRs1(op1);
+                rvInst.imm = std::stoi(op2.name);
+                rvInst.op = rvInst.op == rv::rvOPCODE::SLT ? rv::rvOPCODE::SLTI : rv::rvOPCODE::XORI;
             }
             else{
                 rvInst.rs1 = getRs1(op1);
@@ -891,6 +894,13 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             }
             rvInst.rd = getRd(des);
             fout << rvInst.draw();
+            if (notFlag){
+                rv::rv_inst rvInstNot;
+                rvInstNot.op = rv::rvOPCODE::SLTIU;   // 见文档seqz，等于0则置1，否则置0，合理
+                rvInstNot.rd = rvInstNot.rs1 = rvInst.rd;
+                rvInstNot.imm = 1;
+                fout << rvInstNot.draw();
+            }
         }
             break;
         // logic instruction
@@ -1294,7 +1304,13 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 // 注意Ptr的情况没处理，我盲猜不需要处理，应该在IR阶段处理了，遇到了再说吧
                 assert(op1.type == Type::null && "Unexpected Type!");
             }
+            // 跳转到函数末尾，callee和sp的恢复
+            rv::rv_inst rvRet;
+            rvRet.op = rv::rvOPCODE::J;
+            rvRet.label = "." + currFuncName + "_end";
+            fout << rvRet.draw();
         }
+
             break;
         case ir::Operator::_goto:
         // op1 cond des offset
@@ -1309,28 +1325,33 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         // 完美，只不过要注意每个函数都需要把哈希表清空，然后注意哈希表的回绕。
         {
             rv::rv_inst rvInst;
-            assert(index_flag[ir_stamp] && "Invalid Flag!");
-            rvInst.label = ".L" + std::to_string(index_flag[ir_stamp]);
-            if (op1.type != Type::null){        // 有条件，注意都是可能跳标签的
-                rv::rv_inst rvInst;
-                if (op1.type == Type::IntLiteral){      // 整数字面量
-                    if (std::stoi(op1.name)){   // 满足条件
+            int flagIndex = flag_q.front();
+            flag_q.pop();
+            rvInst.label = ".L" + std::to_string(flagIndex);
+            // cout<<"\tIn _goto: "<<op1.name<<' '<<toString(op1.type)<<' '<<flagIndex<<' '<<rvInst.label<<endl;
+            if (op1.type != Type::null)
+            { // 有条件，注意都是可能跳标签的
+                if (op1.type == Type::IntLiteral){ // 整数字面量
+                    if (std::stoi(op1.name)){ // 满足条件
                         rvInst.op = rv::rvOPCODE::J;
                         fout << rvInst.draw();
                     }
                 }
-                else if(op1.type == Type::FloatLiteral){    // 浮点数字面量
-                    if (std::stof(op1.name)){   // 满足条件
+                else if (op1.type == Type::FloatLiteral)
+                { // 浮点数字面量
+                    if (std::stof(op1.name)){ // 满足条件
                         rvInst.op = rv::rvOPCODE::J;
                         fout << rvInst.draw();
                     }
                 }
                 else if (op1.type == Type::Int){
+                    cout << "\t Here:"<<rvInst.label << endl;
                     rvInst.op = rv::rvOPCODE::BNE;
                     rvInst.rs1 = getRs1(op1);
                     rvInst.rs2 = rv::rvREG::X0;
+                    fout << rvInst.draw();
                 }
-                else if (op1.type == Type::Float){  // 一眼不可能，先否了再说
+                else if (op1.type == Type::Float){ // 一眼不可能，先否了再说
                     assert(0 && "Goto: invalid float register!");
                 }
                 else{
@@ -1438,7 +1459,9 @@ void backend::Generator::get_ir_flagInfo(std::vector<ir::Instruction *>& instArr
         }
     }
     // queue加入flag
+    ir_stamp = 0;
     for (auto& inst:instArr){
+        ir_stamp++;
         if (inst->op == Operator::_goto){
             int offset = std::stoi(inst->des.name);
             int queryIndex = offset + ir_stamp;

@@ -4,22 +4,25 @@ int ifElseIf() {
   a = 5;
   int b;
   b = 10;
-  if(a == 6 || b == 0xb) {
+  if(a == 6 || b == 0xb) {    // L1, L2
     return a;
   }
-  else {
-    if (b == 10 && a == 1)
-      a = 25;
-    else if (b == 10 && a == -5)
+  else {    // L3
+    if (b == 10 && a == 1)    // L4
+      a = 25;                 // L7
+    else if (b == 10 && a == -5)  // L8
       a = a + 15;
     else
       a = -+a;
   }
 
-  return a;
+  return a;     // L14
 }
 
 int main(){
   putint(ifElseIf());
   return 0;
 }
+
+// mv	a0,t1
+// j	.ifElseIf_end

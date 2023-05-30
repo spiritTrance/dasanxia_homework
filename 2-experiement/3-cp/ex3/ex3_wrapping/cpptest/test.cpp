@@ -17,9 +17,12 @@
 //     int c = 1 - b;
 //     return c;
 // }
-int a = 9;
-int b;
 int main(){
-    b = 88;
-    return 0;
+    int b = 8;
+    if (b > 9){
+        return 9;
+    }
+    else{
+        return 6;
+    }
 }

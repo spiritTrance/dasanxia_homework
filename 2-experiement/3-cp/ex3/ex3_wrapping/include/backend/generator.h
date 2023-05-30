@@ -46,8 +46,8 @@ struct Generator {
     std::map<ir::Operand, rv::rvREG> i_opd2regTable;
     std::map<rv::rvREG, ir::Operand> i_reg2opdTable;
     // const parameters
+
     // reg flag
-    
     unsigned int i_validReg;         // 标识存有数据的寄存器
     unsigned int f_validReg;         // 标识存有数据的寄存器
     unsigned int i_imAtomicComp;     // 标识当前指令要参与计算的寄存器
@@ -57,6 +57,7 @@ struct Generator {
     std::queue<int> flag_q;         // 由于指令是顺序扫描的，因此元素记录了该跳进哪个ir
     unsigned int index_flag[100000] = {};       // 记录第几个ir应当打印第几个flag，e.g. index_flag[4] = 3, 则应该在第四条ir指令开头打印.L3
     unsigned int goto_flag = 1;        // 从1开始，从不恢复
+    std::string currFuncName;
     // reg allocate api
     bool isNewOperand(ir::Operand);
     bool isInReg(ir::Operand);
