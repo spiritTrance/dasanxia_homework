@@ -4,8 +4,21 @@ int arr[N + 2 * 4 - 99 / 99] = {1, 2, 33, 4, 5, 6};
 int main() {
   int i = 0, sum = 0;
   while (i < 6) {
+    putint(i);
+    putch(10);
+    putint(arr[i]);
+    putch(10);
     sum = sum + arr[i];
+    // putint(arr[i]);
+    // putch(10);
+    // putint(sum);
+    // putch(10);
+    // putint(i);
+    // putch(10);
     i = i + 1;
+    // putint(i);
+    // putch(10);
   }
+    // putch(10);
   return sum;
 }

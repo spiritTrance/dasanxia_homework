@@ -175,21 +175,20 @@ void backend::Generator::loadMemData(int regIndex, ir::Operand op){
     }
 }         // 将内存里面的值读进到寄存器
 
+// 将所有temp寄存器flush掉
 void backend::Generator::flushReg2Mem(){
+    static const int i_temp_mask = 0b11110000000000000000000011100000;
+    static const int f_temp_mask = 0b11110000000000000000000011111111;
     for (int i = 0; i < 32;i++){
-        if ((i_validReg >> i) & 1){
+        if (((i_validReg >> i) & 1) && ((i_temp_mask >> i) & 1)){
+            cout << "\tIn flush: " << toString(rv::rvREG(i)) <<' '<<i_reg2opdTable[rv::rvREG(i)].name<< endl;
             expireRegData(i, 0);
         }
-        if ((f_validReg >> i) & 1){
+        if (((f_validReg >> i) & 1) && ((f_temp_mask >> i) & 1)){
+            cout << "\tIn flush: " << toString(rv::rvFREG(i)) <<' '<<f_reg2opdTable[rv::rvFREG(i)].name<< endl;
             expireRegData(i, 1);
         }
     }
-    i_validReg = 0;
-    f_validReg = 0;
-    i_reg2opdTable.clear();
-    i_opd2regTable.clear();
-    f_reg2opdTable.clear();
-    f_opd2regTable.clear();
 }
 
 // 认为是给这个Operand分配一个合理的寄存器位置
@@ -499,7 +498,7 @@ void backend::Generator::gen_func(ir::Function& func){
     if (!func.InstVec.size()){       // TODO: 过滤空global的情况
         return;
     }
-    // cout << "In gen_func: " << func.name << endl;
+    cout << "In gen_func: " << func.name << endl;
     stackVarMap *svm = new stackVarMap();
     memvar_Stack.push_back(*svm);
     f_opd2regTable.clear();
@@ -540,12 +539,16 @@ void backend::Generator::gen_func(ir::Function& func){
             rv::rvFREG reg = f_reg_param[f_count++];
             f_opd2regTable[op] = reg;
             f_reg2opdTable[reg] = op;
+            f_validReg |= (1 << int(reg));          // 设置标志位
+            add_operand(op);
         }
         else{       // 指针啥的全当整数处理
             assert(i_count < 8 && "Invalid count!");
             rv::rvREG reg = i_reg_param[i_count++];
             i_opd2regTable[op] = reg;
             i_reg2opdTable[reg] = op;
+            i_validReg |= (1 << int(reg));          // 设置标志位
+            add_operand(op);
         }
     }
     currFuncName = func.name;
@@ -589,7 +592,6 @@ void backend::Generator::gen_func(ir::Function& func){
 
 
 void backend::Generator::gen_instr(ir::Instruction& inst){
-    flushReg2Mem();
     // 库函数
     // 吐了，写完才发现写炸了：
     // 1、浮点数寄存器不能加载常量，要经过两个步骤
@@ -597,11 +599,13 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
     // 3、想到再补，现在头脑一片乱麻了，草了啊害
     // 4、仔细思考：全局变量作为源操作数和目的操作数怎么办，全局变量作为参数传进来怎么办（尤其是数组）
     // 5、完蛋
+    // 6、再次补充：记录1reg和opd的操作。。。遇到分支还真烦耶，尤其是while要挑回去那种
     // TODO DEBUG: 浮点计数器不能采用LI加载常量
     cout << "In gen_instr: " << ir_stamp << ' ' << inst.draw() << endl;
     cout << "\ti_validReg: " << std::bitset<sizeof(i_validReg)*8>(i_validReg) << endl;
     cout << "\tf_validReg: " << std::bitset<sizeof(f_validReg)*8>(f_validReg) << endl;
     ir_stamp += 1;
+    flushReg2Mem();
     if (index_flag[ir_stamp]){
         fout << ".L" + std::to_string(index_flag[ir_stamp]) + ":"<< endl;
     }
@@ -1119,7 +1123,8 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 else{       // op2保存了偏移量
                     rv::rv_inst rvInst_offsetAddr;
                     rvInst_offsetAddr.op = rv::rvOPCODE::SLLI;
-                    rvInst_offsetAddr.rd = rvInst_offsetAddr.rs1 = getRs1(op2);
+                    rvInst_offsetAddr.rd = rv::rvREG::X7;        // 存储乘以4的值（相信X7！）
+                    rvInst_offsetAddr.rs1 = getRs1(op2);
                     rvInst_offsetAddr.imm = 2;     // 左移两位相当于乘以4
                     fout << rvInst_offsetAddr.draw();
                     rvInst.op = rv::rvOPCODE::ADD;      // 算偏移量
@@ -1141,7 +1146,8 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 }
                 else{       // 不是字面量
                     rv::rv_inst rvInst_baseComp;
-                    rvInst_baseComp.rd = rvInst_baseComp.rs1 = getRs1(op2);
+                    rvInst_baseComp.rs1 = getRs1(op2);
+                    rvInst_baseComp.rd = rv::rvREG::X7;     // 算偏移，相信X7!
                     rvInst_baseComp.imm = 2;
                     rvInst_baseComp.op = rv::rvOPCODE::SLLI;    // 步骤1：算偏移量
                     fout << rvInst_baseComp.draw();     // IDX乘以4，算byte
@@ -1352,7 +1358,6 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 if (op1.type == Type::IntLiteral){ // 整数字面量
                     if (std::stoi(op1.name)){ // 满足条件
                         rvInst.op = rv::rvOPCODE::J;
-                        flushReg2Mem();
                         fout << rvInst.draw();
                     }
                 }
@@ -1360,7 +1365,6 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 { // 浮点数字面量
                     if (std::stof(op1.name)){ // 满足条件
                         rvInst.op = rv::rvOPCODE::J;
-                        flushReg2Mem();
                         fout << rvInst.draw();
                     }
                 }
@@ -1369,7 +1373,6 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     rvInst.op = rv::rvOPCODE::BNE;
                     rvInst.rs1 = getRs1(op1);
                     rvInst.rs2 = rv::rvREG::X0;
-                    flushReg2Mem();
                     fout << rvInst.draw();
                 }
                 else if (op1.type == Type::Float){ // 一眼不可能，先否了再说
@@ -1381,7 +1384,6 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             }
             else{       // 无条件跳转
                 rvInst.op = rv::rvOPCODE::J;
-                flushReg2Mem();
                 fout << rvInst.draw();
             }
         }
@@ -1746,7 +1748,7 @@ int backend::Generator::getStackSpaceSize(std::vector<ir::Instruction *> & func)
     std::set<ir::Operand> varSet;
     int arrSize = 0;
     // alloc op1就是大小，因为所有数组大小都必须在编译期确定，所以都可以知道大小！
-    for (auto& i: func){
+    for (auto i: func){
         varSet.insert(i->des);
         varSet.insert(i->op1);
         varSet.insert(i->op2);
@@ -1754,8 +1756,8 @@ int backend::Generator::getStackSpaceSize(std::vector<ir::Instruction *> & func)
             arrSize += std::stoi(i->op1.name);
         }
     }
-    // 最后这个16*4是参数最大个数（期望不超过8，否则要改）
-    return varSet.size() * 4 + arrSize * 4 + 16 * 4;
+    // 最后这个40*4是参数最大个数为40（反正最多只有32个，偷懒了）
+    return varSet.size() * 4 + arrSize * 4 + 40 * 4;
 }
 
 
