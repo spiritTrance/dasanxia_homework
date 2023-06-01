@@ -65,6 +65,7 @@ struct Generator {
     bool isGlobalVar(ir::Operand);
     void expireRegData(int, int);       // 将寄存器里面的值移回到内存，注意可能是全局变量
     void loadMemData(int, ir::Operand);         // 将内存里面的值读进到寄存器
+    void flushReg2Mem();                // 将寄存器的所有值都flush回内存
     rv::rvREG getRd(ir::Operand);
     rv::rvREG getRs1(ir::Operand);
     rv::rvREG getRs2(ir::Operand);

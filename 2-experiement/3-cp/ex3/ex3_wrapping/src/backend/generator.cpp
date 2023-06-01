@@ -175,6 +175,23 @@ void backend::Generator::loadMemData(int regIndex, ir::Operand op){
     }
 }         // 将内存里面的值读进到寄存器
 
+void backend::Generator::flushReg2Mem(){
+    for (int i = 0; i < 32;i++){
+        if ((i_validReg >> i) & 1){
+            expireRegData(i, 0);
+        }
+        if ((f_validReg >> i) & 1){
+            expireRegData(i, 1);
+        }
+    }
+    i_validReg = 0;
+    f_validReg = 0;
+    i_reg2opdTable.clear();
+    i_opd2regTable.clear();
+    f_reg2opdTable.clear();
+    f_opd2regTable.clear();
+}
+
 // 认为是给这个Operand分配一个合理的寄存器位置
 // reg allocate api
 // 所有的api要考虑以下问题：
@@ -572,6 +589,7 @@ void backend::Generator::gen_func(ir::Function& func){
 
 
 void backend::Generator::gen_instr(ir::Instruction& inst){
+    flushReg2Mem();
     // 库函数
     // 吐了，写完才发现写炸了：
     // 1、浮点数寄存器不能加载常量，要经过两个步骤
@@ -1334,6 +1352,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 if (op1.type == Type::IntLiteral){ // 整数字面量
                     if (std::stoi(op1.name)){ // 满足条件
                         rvInst.op = rv::rvOPCODE::J;
+                        flushReg2Mem();
                         fout << rvInst.draw();
                     }
                 }
@@ -1341,6 +1360,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 { // 浮点数字面量
                     if (std::stof(op1.name)){ // 满足条件
                         rvInst.op = rv::rvOPCODE::J;
+                        flushReg2Mem();
                         fout << rvInst.draw();
                     }
                 }
@@ -1349,6 +1369,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     rvInst.op = rv::rvOPCODE::BNE;
                     rvInst.rs1 = getRs1(op1);
                     rvInst.rs2 = rv::rvREG::X0;
+                    flushReg2Mem();
                     fout << rvInst.draw();
                 }
                 else if (op1.type == Type::Float){ // 一眼不可能，先否了再说
@@ -1360,6 +1381,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             }
             else{       // 无条件跳转
                 rvInst.op = rv::rvOPCODE::J;
+                flushReg2Mem();
                 fout << rvInst.draw();
             }
         }
@@ -1492,7 +1514,7 @@ int backend::Generator::getOffSetFromStackSpace(ir::Operand opd){
         return it->second;
     }
     else{
-        // cout << "In getOffsetFromStackSpace: " << opd.name << endl;
+        cout << "In getOffsetFromStackSpace: " << opd.name<<' '<<toString(opd.type) << endl;
         assert(0 && "Inexisted stack varaiable!");
     }
 }

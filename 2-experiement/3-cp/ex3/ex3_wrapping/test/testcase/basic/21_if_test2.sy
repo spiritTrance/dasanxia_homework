@@ -8,11 +8,11 @@ int ifElseIf() {
     return a;
   }
   else {    // L3
-    if (b == 10 && a == 1)    // L4
-      a = 25;                 // L7
-    else if (b == 10 && a == -5)  // L8
-      a = a + 15;
-    else
+    if (b == 10 && a == 1)        // L4 && L5
+      a = 25;                     // L7
+    else if (b == 10 && a == -5)  // L8 && L10
+      a = a + 15;                 // L12
+    else                          // L13
       a = -+a;
   }
 

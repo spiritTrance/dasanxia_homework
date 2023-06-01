@@ -16,3 +16,7 @@ int ififElse() {
 int main(){
   return (ififElse());
 }
+
+
+	// mv	a0,t1
+	// j	.ififElse_end
