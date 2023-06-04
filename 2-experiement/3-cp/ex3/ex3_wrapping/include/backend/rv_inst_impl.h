@@ -13,7 +13,7 @@ struct rv_inst {
     int32_t imm;               // optional, in immediate inst
     std::string label;          // optional, in beq/jarl inst
 
-    std::string draw() const;
+    std::string draw(std::string comment = "") const;
 };
 
 };

@@ -1373,7 +1373,9 @@ vector<Operand> frontend::Analyzer::analysisFuncRParams(FuncRParams* root, vecto
         // 检查操作数类型（主要是指针）
         Type targetType = originParams[index / 2].type;
         Operand tarOpd = castExpectedType(srcOpd, targetType, buffer);
-        ans.push_back(tarOpd);
+        Operand *finalOpd = new Operand(tarOpd);
+        cout << "In FuncRParam: " << srcOpd.name << ' ' << toString(srcOpd.type) << ' ' << toString(targetType) << endl;
+        ans.push_back(*finalOpd);
         index += 2;
     }
     return ans;

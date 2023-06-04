@@ -16,3 +16,14 @@ bool ir::Operand::operator>(const ir::Operand & opd) const{
     }
     return this->type > opd.type;
 }
+
+ir::Operand::Operand(const ir::Operand& operand){
+    this->name = operand.name;
+    this->type = operand.type;
+}
+
+ir::Operand ir::Operand::operator=(const ir::Operand& operand){
+    this->name = operand.name;
+    this->type = operand.type;
+    return *this;
+}

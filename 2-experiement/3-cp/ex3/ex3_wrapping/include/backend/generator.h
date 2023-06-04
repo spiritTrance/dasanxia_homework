@@ -63,6 +63,7 @@ struct Generator {
     bool isInReg(ir::Operand);
     bool isInStack(ir::Operand);
     bool isGlobalVar(ir::Operand);
+    bool isInParamList(ir::Operand);
     void expireRegData(int, int);       // 将寄存器里面的值移回到内存，注意可能是全局变量
     void loadMemData(int, ir::Operand);         // 将内存里面的值读进到寄存器
     void flushReg2Mem();                // 将寄存器的所有值都flush回内存
@@ -83,8 +84,6 @@ struct Generator {
     void get_ir_flagInfo(std::vector<ir::Instruction *>&);
     // 获取栈中的Operand
     // FIXME: 删除这两个函数，功能和find_operand重叠
-    ir::Operand getOperandFromStackSpace(ir::Operand);
-    int getOffSetFromStackSpace(ir::Operand);
 
     int find_operand(ir::Operand);
     int add_operand(ir::Operand, int32_t size = 4);    // 栈空间里面分配空间

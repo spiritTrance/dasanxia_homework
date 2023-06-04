@@ -8,7 +8,7 @@
 
 #define TODO assert(0 && "TODO");
 #define DEBUG_EXEC_BRIEF  1
-#define DEBUG_EXEC_DETAIL 0
+#define DEBUG_EXEC_DETAIL 1
 #define IS_INT_OPERAND(operand) (operand.type == Type::Int || operand.type == Type::IntLiteral)
 #define IS_FLOAT_OPERAND(operand) (operand.type == Type::Float || operand.type == Type::FloatLiteral)
 
