@@ -6,6 +6,7 @@
 #include "backend/rv_inst_impl.h"
 
 #include<map>
+#include<set>
 #include<string>
 #include<vector>
 #include<queue>
@@ -45,6 +46,7 @@ struct Generator {
     std::map<rv::rvFREG, ir::Operand> f_reg2opdTable;
     std::map<ir::Operand, rv::rvREG> i_opd2regTable;
     std::map<rv::rvREG, ir::Operand> i_reg2opdTable;
+    std::set<ir::Operand> isArr_set;
     // const parameters
 
     // reg flag

@@ -1,7 +1,7 @@
 // DEBUG LOG: 有个GLOBAL_SCOPE_NAME，就是全局非常量变量的初始化，我弄的是全局变量无脑store为0，后面看情况改
 // sVarDef: mov是有bug的
-#include"front/semantic.h"
-#include"front/auxiliary_function.h"
+#include"/coursegrader/include/front/semantic.h"
+#include"/coursegrader/include/front/auxiliary_function.h"
 
 #include<cassert>
 

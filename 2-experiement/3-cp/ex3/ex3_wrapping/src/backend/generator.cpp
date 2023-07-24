@@ -10,7 +10,7 @@
 #include <bitset>   // debug
 #define TODO assert(0 && "todo");
 #define endl "\n"
-
+#define MAX_IR_SIZE 100000
 /*
  *  TODO: flush
  *  在开始之前，我强调一下全局变量的处理：
@@ -39,7 +39,7 @@ int backend::stackVarMap::add_operand(ir::Operand op, int32_t size){
     }
     int totSize = -(currSize + size);
     stack_table[op] = totSize;
-    cout << "In add_operand: [" << op.name << "] " << totSize <<' '<< size <<' '<<toString(op.type)<< endl;
+    // cout << "In add_operand: [" << op.name << "] " << totSize <<' '<< size <<' '<<toString(op.type)<< endl;
     return totSize;        // 相对于fp来算的话，fp是大地址，那么-fp是小地址，数组的话，正向偏移，和xx一致的。
 }
 
@@ -526,6 +526,7 @@ void backend::Generator::gen_func(ir::Function& func){
     f_reg2opdTable.clear();
     i_opd2regTable.clear();
     i_reg2opdTable.clear();
+    isArr_set.clear();
     i_validReg = 0;
     f_validReg = 0;
     i_imAtomicComp = 0;
@@ -576,7 +577,12 @@ void backend::Generator::gen_func(ir::Function& func){
     for (auto inst: func.InstVec){
         gen_instr(*inst);
     }
-    // 打印函数结束的标签
+    // 打印函数结束的标签以及未结束的标签
+    for (size_t i = func.InstVec.size() + 1; i < MAX_IR_SIZE; i++){
+        if (index_flag[i]){
+            fout << ".L" << index_flag[i] << ':' << endl;
+        }
+    }
     fout << "." + currFuncName + "_end:" << endl;
     // 恢复sp
     i_imAtomicComp = 0;
@@ -626,10 +632,10 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
     cout << "\ti_validReg: " << std::bitset<sizeof(i_validReg)*8>(i_validReg) << endl;
     cout << "\tf_validReg: " << std::bitset<sizeof(f_validReg)*8>(f_validReg) << endl;
     ir_stamp += 1;
+    flushReg2Mem();
     if (index_flag[ir_stamp]){
-        flushReg2Mem();
-        TODO;   // 取消flushReg2Mem
         fout << ".L" + std::to_string(index_flag[ir_stamp]) + ":"<< endl;
+        cout << ir_stamp <<".L" + std::to_string(index_flag[ir_stamp]) + ":"<< endl;
     }
     // 原子计算标志位清空
     i_imAtomicComp = 0;
@@ -1007,6 +1013,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         // getptr $tem, a, 2
         // 注意这里$tem是地址不是load出来的值
         // 注意FloatPtr的情况
+        // TODO: load是否有store类似的问题（指针和栈内数组弄混）
         {
             // rs1 is a base, rd is target and imm is offset
             rv::rv_inst rvInst;
@@ -1047,7 +1054,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     rvInst.op = rv::rvOPCODE::LW;
                     rvInst.rs1 = getRs1(op1);
                     int arr_idx_offset = frontend::evalInt(op2.name) * 4;
-                    rvInst.imm = arr_idx_offset ;
+                    rvInst.imm = arr_idx_offset;
                     rvInst.rd = getRd(des);
                     fout << rvInst.draw("\t# load from stack_i");
                 }
@@ -1061,8 +1068,9 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         }
             break;
         case ir::Operator::store:   // des 是目标存入变量，op1 是数组名，op2是偏移量
-        // 注意考虑全局变量的情况
+        // 注意考虑全局变量的情况，以及作为参数的情况
         {
+            assert(op2.type == Type::IntLiteral && "Not a intLiteral!");
             rv::rv_inst rvInst;
             if (op1.type == Type::FloatPtr){
                 if (isGlobalVar(op1)){      // 全局变量
@@ -1076,12 +1084,13 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     fout << rvInst.draw("\t# store in global_f");
                 }
                 else if (isInStack(op1)){
+                    bool isArr = (isArr_set.find(op1) != isArr_set.end());
                     rvInst.op = rv::rvOPCODE::FSW;
                     rvInst.frs2 = fgetRs2(des);      // 要存的值，注意一下
-                    rvInst.rs1 = rv::rvREG::X8;
+                    rvInst.rs1 = isArr ? rv::rvREG::X8 : getRs1(op1);
                     int arr_base_offset = find_operand(op1);
                     int arr_idx_offset = frontend::evalInt(op2.name) * 4;
-                    rvInst.imm = arr_base_offset + arr_idx_offset ;
+                    rvInst.imm = isArr ? (arr_base_offset + arr_idx_offset) : arr_idx_offset;
                     fout << rvInst.draw("\t# store in stack_f");
                 }
                 else{
@@ -1089,6 +1098,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 }
             }
             else if (op1.type == Type::IntPtr){
+                // 如何区分这是个指针还是存放在stack空间的？
                 if (isGlobalVar(op1)){
                     rvInst.rs1 = getRs1(op1);
                     fout<<"\t"<<"lui\t"<<toString(rvInst.rs1)<<","<<"\%hi("<<op1.name<<")"<<"\t# store"<<endl;
@@ -1100,12 +1110,13 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     fout << rvInst.draw("\t# store in global_i");
                 }
                 else if (isInStack(op1)){
+                    bool isArr = (isArr_set.find(op1) != isArr_set.end());
                     rvInst.op = rv::rvOPCODE::SW;
                     rvInst.rs2 = getRs2(des);
-                    rvInst.rs1 = rv::rvREG::X8;
+                    rvInst.rs1 = isArr ? rv::rvREG::X8 : getRs1(op1);
                     int arr_base_offset = find_operand(op1);
                     int arr_idx_offset = frontend::evalInt(op2.name) * 4;
-                    rvInst.imm = arr_base_offset + arr_idx_offset;
+                    rvInst.imm = isArr ? (arr_base_offset + arr_idx_offset) : arr_idx_offset;
                     fout << rvInst.draw("\t# store in stack_i");
                 }
                 else{
@@ -1121,6 +1132,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
         {
             int sz = frontend::evalInt(op1.name);
             add_operand(des, sz * 4);       // 32个大小
+            isArr_set.insert(des);
         }
             break;
         case ir::Operator::getptr:
@@ -1247,7 +1259,7 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 // 问题来了：全局变量作为形参，在被调用者函数中，应该怎么识别
                 // 识别你妈啊，傻逼，这他妈不就变成局部变量了么？
                 ir::Operand paramOpd = callInstPtr->argumentList[i];
-                cout <<"In call: "<< paramOpd.name << ' ' << toString(paramOpd.type) << endl;
+                // cout <<"In call: "<< paramOpd.name << ' ' << toString(paramOpd.type) << endl;
                 if (paramOpd.type == Type::IntLiteral){     // 先考虑字面量的情况，他们必然不受全局变量的打扰
                     if (intRegCount >= 8){
                         stackParamList.push_back(paramOpd);
@@ -1314,9 +1326,16 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     }   
                     else{       // 局部变量
                         rvInst.op = rv::rvOPCODE::ADDI;
-                        rvInst.rs1 = rv::rvREG::X8;
+                        rvInst.rs1 = rv::rvREG::X8;     // fp
                         rvInst.imm = find_operand(paramOpd);
                         fout << rvInst.draw("\t# call func");
+                        // 如果不是数组的话，那么传的就不是栈中数组地址，是指针存放地址了
+                        if (isArr_set.find(paramOpd) == isArr_set.end()){
+                            rvInst.op = rv::rvOPCODE::LW;
+                            rvInst.rs1 = rvInst.rd;
+                            rvInst.imm = 0;
+                            fout << rvInst.draw("\t# call func");
+                        }
                     }
                 }
                 else{
@@ -1433,7 +1452,6 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 if (op1.type == Type::IntLiteral){ // 整数字面量
                     if (frontend::evalInt(op1.name)){ // 满足条件
                         rvInst.op = rv::rvOPCODE::J;
-                        flushReg2Mem();
                         fout << rvInst.draw("\t# cond goto");
                     }
                 }
@@ -1441,7 +1459,6 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                 { // 浮点数字面量
                     if (std::stof(op1.name)){ // 满足条件
                         rvInst.op = rv::rvOPCODE::J;
-                        flushReg2Mem();
                         fout << rvInst.draw("\t# cond goto");
                     }
                 }
@@ -1450,7 +1467,6 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
                     rvInst.op = rv::rvOPCODE::BNE;
                     rvInst.rs1 = getRs1(op1);
                     rvInst.rs2 = rv::rvREG::X0;
-                    flushReg2Mem();
                     fout << rvInst.draw("\t# cond goto");
                 }
                 else if (op1.type == Type::Float){ // 一眼不可能，先否了再说
@@ -1462,7 +1478,6 @@ void backend::Generator::gen_instr(ir::Instruction& inst){
             }
             else{       // 无条件跳转
                 rvInst.op = rv::rvOPCODE::J;
-                flushReg2Mem();
                 fout << rvInst.draw("\t# uncond goto");
             }
         }
@@ -1551,26 +1566,32 @@ void backend::Generator::get_ir_flagInfo(std::vector<ir::Instruction *>& instArr
         flag_q.pop();
     }
     memset(index_flag, 0, sizeof(index_flag));
-    // 标注flag
+    // 标注flag, 注意index与ir的index对应
+    // 特别注意ir_stamp从1开始编号！！！
     for (auto& inst: instArr){
         ir_stamp += 1;
         if (inst->op == Operator::_goto){
             int offset = frontend::evalInt(inst->des.name);
             // 偷懒被发现了（确信）
-            assert((0 <= offset + ir_stamp && offset + ir_stamp < 100000) && "Flag index exceeded!");
-            index_flag[offset + ir_stamp] = goto_flag++;
+            assert((0 <= offset + ir_stamp && offset + ir_stamp < MAX_IR_SIZE) && "Flag index exceeded!");
+            // 要特判重叠的情况(goto到同一条ir指令)
+            cout << "In flagInfo: " << offset << ' ' << ir_stamp << ' ' << offset + ir_stamp << ' ' << goto_flag << endl;
+            if (!index_flag[offset + ir_stamp]){
+                index_flag[offset + ir_stamp] = goto_flag++;
+            }
         }
     }
     // queue加入flag
     ir_stamp = 0;
     for (auto& inst:instArr){
-        ir_stamp++;
+        ir_stamp += 1;
         if (inst->op == Operator::_goto){
             int offset = frontend::evalInt(inst->des.name);
             int queryIndex = offset + ir_stamp;
             flag_q.push(index_flag[queryIndex]);
         }
     }
+    cout << "In flag_info: " << flag_q.size() << endl;
     // 退出前的stamp要清空
     ir_stamp = 0;
 }
@@ -1586,7 +1607,7 @@ int backend::Generator::add_operand(ir::Operand op, int32_t size){
     int index = memvar_Stack.size() - 1;
     // cout << "In add_operand: " << op.name << ' '<<index<<endl;
     assert(index >= 0 && "No Such menVar_stack size of 0!");
-    cout << "In add_pod: " << index << endl;
+    // cout << "In add_pod: " << index << endl;
     auto it = memvar_Stack[index].stack_table.find(op);
     if (it != memvar_Stack[index].stack_table.end()){       // 已经分配过了
         // cout << "In Operand: Already Allocated." << endl;
@@ -1729,7 +1750,7 @@ int backend::Generator::callerRegisterSave(){
                 rvInst.rs1 = rv::rvREG::X8;         // fp
                 rvInst.rs2 = saveReg;
                 rvInst.imm = find_operand(opd);
-                cout << "In callerSave: " << opd.name << endl;
+                // cout << "In callerSave: " << opd.name << endl;
                 fout << rvInst.draw("\t# caller reg save");
             }
         }
@@ -1771,7 +1792,7 @@ int backend::Generator::callerRegisterRestore(){
             rvInst.rs1 = rv::rvREG::X8;     // fp
             rvInst.rd = restoreReg;
             ir::Operand opd = i_reg2opdTable[restoreReg];
-            cout << "In callerRestore: " << opd.name << endl;
+            // cout << "In callerRestore: " << opd.name << endl;
             if (!isGlobalVar(opd)){
                 rvInst.imm = find_operand(opd);
                 fout << rvInst.draw("\t# caller reg restore");
